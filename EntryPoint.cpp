@@ -5,6 +5,7 @@
 #include <iostream>
 #include <filesystem>
 #include <string>
+#include <bits/this_thread_sleep.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -35,6 +36,7 @@ int main() {
     HMODULE lib = LoadLibraryA(dllPath.string().c_str());
     if (!lib) {
         std::cerr << "Failed to load " << dllPath << "\n";
+        std::this_thread::sleep_for(std::chrono::seconds(10));
         return -1;
     }
 
