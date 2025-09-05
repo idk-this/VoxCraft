@@ -31,6 +31,7 @@ void VoxCraftGame::Run()
     LOG_INFO("Application", "Creating window.");
     window = std::make_unique<SDL3Window>();
     if (!window->Create(GET_CVAR(int, "w_size_width"), GET_CVAR(int, "w_size_height"), GET_CVAR(std::string, "w_title"))) {
+        LOG_INFO("Application", "Window creation failed. Parameters: width({}) height({}) title({})", GET_CVAR(int, "w_size_width"), GET_CVAR(int, "w_size_height"), GET_CVAR(std::string, "w_title"));
         return;
     }
     LOG_INFO("Application", "Creating Vulkan renderer.");
