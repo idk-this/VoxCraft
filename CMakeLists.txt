@@ -1,10 +1,13 @@
+# Корневой CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
-project(VoxSolution)
+project(VoxSolution LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
-    string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
+# Настройка выходных директорий
+foreach(OUTPUTCONFIG IN LISTS CMAKE_CONFIGURATION_TYPES)
+    string(TOUPPER "${OUTPUTCONFIG}" OUTPUTCONFIG_UPPER)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} ${CMAKE_BINARY_DIR}/${OUTPUTCONFIG})
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} ${CMAKE_BINARY_DIR}/${OUTPUTCONFIG})
 endforeach()
@@ -14,21 +17,21 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Debug)
 endif()
 
-# Engine (DLL)
+# Подпроекты
 add_subdirectory(Engine)
-
-# Game (DLL)
 add_subdirectory(Game)
 
-# Launcher
+# Исполняемый файл
 add_executable(VoxCraft EntryPoint.cpp)
+
 if(MINGW)
-    target_compile_options(VoxCraft PRIVATE -static-libgcc -static-libstdc++ -lpthread --static)
-    target_link_options(VoxCraft PRIVATE -static-libgcc -static-libstdc++ -lpthread --static)
+    target_link_options(VoxCraft PRIVATE -static -static-libgcc -static-libstdc++ -lpthread)
 endif()
+
 target_link_libraries(VoxCraft PRIVATE VoxCraftGame)
 
+# Настройка выходных директорий для исполняемого файла
 set_target_properties(VoxCraft PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/Debug
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/Release
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
 )

@@ -15,6 +15,7 @@ VoxCraftGame::VoxCraftGame()
     SET_CVAR("w_title", "VoxCraft Beta");
     SET_CVAR("w_size_width", 1920);
     SET_CVAR("w_size_height", 1080);
+    SET_CVAR("sv_allow_modding", false);
 }
 
 VoxCraftGame::~VoxCraftGame()
@@ -41,6 +42,7 @@ void VoxCraftGame::Run()
         LOG_FATAL("Application", "Failed to initialize Vulkan renderer.");
         return;
     }
+
 
     LOG_INFO("Application", "Starting main loop.");
     MainLoop();

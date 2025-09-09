@@ -1,25 +1,35 @@
+# Game/CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
-project(VoxCraftGame)
+project(VoxCraftGame LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 file(GLOB_RECURSE GAME_SRC
         Application/*.cpp
-)
-file(GLOB_RECURSE GAME_HDR
         Application/*.h
 )
+if(WIN32)
+    add_compile_definitions(PLATFORM_WINDOWS)
+elseif(UNIX)
+    add_compile_definitions(PLATFORM_LINUX)
+endif()
 
-add_library(VoxCraftGame SHARED  ${GAME_SRC} ${GAME_HDR}
-GameEntry.cpp)
+set(RESOURCES_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Resources")
+set(RESOURCES_DST "${CMAKE_BINARY_DIR}/$<CONFIG>/Game")
 
 
+add_library(VoxCraftGame SHARED ${GAME_SRC} GameEntry.cpp)
+add_custom_command(TARGET VoxCraftGame POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${RESOURCES_DST}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${RESOURCES_SRC}" "${RESOURCES_DST}"
+        COMMENT "Copying resources to ${RESOURCES_DST}"
+)
 target_link_libraries(VoxCraftGame PRIVATE VoxCore)
-
 
 set_target_properties(VoxCraftGame PROPERTIES
         PREFIX ""
         OUTPUT_NAME "VoxCraft"
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/Game/bin
-        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/Game/bin
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/Game/bin"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/Game/bin"
 )
