@@ -13,9 +13,7 @@ VoxCraftGame::VoxCraftGame()
 : Engine::Application()
 {
     SET_CVAR("w_title", "VoxCraft Beta");
-    SET_CVAR("w_size_width", 1920);
-    SET_CVAR("w_size_height", 1080);
-    SET_CVAR("sv_allow_modding", false);
+    SET_CVAR("sv_allow_modding", true);
 }
 
 VoxCraftGame::~VoxCraftGame()
