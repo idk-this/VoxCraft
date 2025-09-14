@@ -28,6 +28,7 @@ add_custom_command(TARGET VoxCraftGame POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${RESOURCES_SRC}" "${RESOURCES_DST}"
         COMMENT "Copying resources to ${RESOURCES_DST}"
 )
+
 if (EXISTS "${LIBS_SRC}" AND IS_DIRECTORY "${LIBS_SRC}")
     file(GLOB LIB_FILES "${LIBS_SRC}/*")
     if (LIB_FILES)
