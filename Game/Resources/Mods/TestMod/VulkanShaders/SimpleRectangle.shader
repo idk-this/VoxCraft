@@ -6,32 +6,17 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 proj;
 } camera;
 
+layout(location = 0) in vec3 inPosition;       // Vertex position
+layout(location = 1) in vec3 inColor;          // Vertex color
+
+layout(location = 2) in mat4 instanceModel;    // Instance transform
+layout(location = 6) in vec3 instanceColor;    // Instance color
+
 layout(location = 0) out vec3 fragColor;
 
-
-vec2 positions[6] = vec2[](
-    vec2(0.5, -0.3),
-    vec2(0.5, 0.5),
-    vec2(-0.5, 0.5),
-    vec2(0.5, -0.5),
-    vec2(-0.5, -0.5),
-    vec2(-0.5, 0.5)
-);
-
-vec3 colors[6] = vec3[](
-    vec3(1.0, 0.0, 0.0),
-    vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 0.0, 1.0),
-    vec3(1.0, 1.0, 0.0),
-    vec3(0.0, 1.0, 1.0),
-    vec3(1.0, 0.0, 1.0)
-);
-
-
 void main() {
-     vec4 worldPos = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    gl_Position = camera.proj * camera.view * worldPos;
-    fragColor = colors[gl_VertexIndex];
+    gl_Position = camera.proj * camera.view * instanceModel * vec4(inPosition, 1.0);
+    fragColor = inColor * instanceColor; // комбинируем цвет вершины и экземпляра
 }
 
 #type fragment

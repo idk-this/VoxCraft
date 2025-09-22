@@ -9,11 +9,14 @@
 #include "Core/Log/Logger.h"
 #include "Platform/Window/SDL3/SDL3Window.h"
 
+
+
 VoxCraftGame::VoxCraftGame()
 : Engine::Application()
 {
     SET_CVAR("w_title", "VoxCraft Beta");
     SET_CVAR("sv_allow_modding", true);
+
 }
 
 VoxCraftGame::~VoxCraftGame()
@@ -23,8 +26,9 @@ VoxCraftGame::~VoxCraftGame()
 void VoxCraftGame::Run()
 {
     Application::Run();
-    Logger::instance().add_output("*", std::cout);
+    m_logSystem->add_output("*", std::cout);
     LOG_INFO("Application", "Initializing engine.");
+    m_world = std::make_shared<UWorld>();
     Init();
     LOG_INFO("Application", "Initialization successful.");
     LOG_INFO("Application", "Creating window.");
@@ -34,8 +38,9 @@ void VoxCraftGame::Run()
         return;
     }
     LOG_INFO("Application", "Creating Vulkan renderer.");
+
     renderer = std::make_unique<VulkanRenderer>();
-    m_world = std::make_shared<UWorld>();
+
     if (!renderer->Init(window.get(), m_world.get())) {
         LOG_FATAL("Application", "Failed to initialize Vulkan renderer.");
         return;
