@@ -5,7 +5,7 @@
 #include "VoxCraftGame.h"
 
 #include "Core/CVar/CVar.h"
-#include "Core/ECS/BaseClasses/UWorld.h"
+#include "Core/ECS/Base/UWorld.h"
 #include "Core/Log/Logger.h"
 #include "Platform/Window/SDL3/SDL3Window.h"
 
