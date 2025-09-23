@@ -10,6 +10,8 @@ class VoxCraftGame : public Engine::Application {
     public:
         VoxCraftGame();
         ~VoxCraftGame() override;
+        void Init() override;
+        void Update(float deltaTime) override;
         void Run() override;
 
 };

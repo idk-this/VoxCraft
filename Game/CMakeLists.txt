@@ -8,6 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 file(GLOB_RECURSE GAME_SRC
         Application/*.cpp
         Application/*.h
+        ECS/*.h
+        ECS/*.cpp
+        ECS/**/*.h
+        ECS/**/*.cpp
 )
 if(WIN32)
     add_compile_definitions(PLATFORM_WINDOWS)
@@ -23,6 +27,9 @@ set(LIBS_DST "${CMAKE_BINARY_DIR}/$<CONFIG>/Game/lib")
 
 
 add_library(VoxCraftGame SHARED ${GAME_SRC} GameEntry.cpp)
+target_include_directories(VoxCraftGame PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
 add_custom_command(TARGET VoxCraftGame POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${RESOURCES_DST}"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${RESOURCES_SRC}" "${RESOURCES_DST}"
