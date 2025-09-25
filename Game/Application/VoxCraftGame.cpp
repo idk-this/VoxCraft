@@ -8,6 +8,7 @@
 #include "Core/CVar/CVar.h"
 #include "Core/ECS/Base/UWorld.h"
 #include "Core/ECS/Components/UMeshComponent.h"
+
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
@@ -21,7 +22,10 @@ public:
     TestCube() {
         AddComponent(std::make_shared<UTransformComponent>());
         auto mesh = std::make_shared<UMeshComponent>();
-        mesh->SetIcosahedronMesh();
+        mesh->Texture = std::make_shared<UTexture>();
+        mesh->Mesh = std::make_shared<UMesh>();
+        mesh->Mesh->SetCubeMesh();
+        mesh->Texture->LoadFromFile("Test.png");
         AddComponent(mesh);
     }
 };
@@ -51,22 +55,37 @@ void VoxCraftGame::Init()
     m_localPlayer->GetController()->Possess(playerPawn);
     glm::vec3 offset = glm::vec3(1.0f, 3.0f, 2.0f);
    // testPlayer = m_world->SpawnActor<LocalPlayer>();
-    auto model = m_world->SpawnActor<TestCube>();
+    /*auto model = m_world->SpawnActor<TestCube>();
     glm::vec3 pos = glm::vec3(0, 0, 15) * 2.0f;
     model->GetComponent<UTransformComponent>()->SetPosition(pos);
     model->GetComponent<UTransformComponent>()->scale = glm::vec3(2);
     model->GetComponent<UTransformComponent>()->rotation = glm::quat(glm::vec3(67.5f, 0.0f, 0.0f));
-    bool isLoaded = model->GetComponent<UMeshComponent>()->LoadFromOBJ("mesh_voxelized.obj");
-    if (!isLoaded)
+    bool isLoaded = model->GetComponent<UMeshComponent>()->Mesh->LoadFromOBJ("mesh_voxelized.obj");
+    model->GetComponent<UMeshComponent>()->Texture->LoadFromFile("Test.png");*/
+
+    /*if (!isLoaded)
     {
         LOG_ERROR("Application", "Failed to load model");
-    }
+    }*/
+    std::vector<std::string> texturePaths = {
+        "minecraft_desk.png",
+        "minecraft_dirt.jpg",
+    };
+    int index = 0;
+
     for (int x = 0; x < 3; ++x) {
         for (int y = 0; y < 3; ++y) {
             for (int z = 0; z < 3; ++z) {
                 auto cube = m_world->SpawnActor<TestCube>();
                 glm::vec3 pos = glm::vec3(x, y, z) * 2.0f - offset;
                 cube->GetComponent<UTransformComponent>()->SetPosition(pos);
+
+                // Берём текстуру по индексу (с защитой на выход за размер)
+                std::string texPath = texturePaths[index % texturePaths.size()];
+                cube->GetComponent<UMeshComponent>()->Texture->LoadFromFile(texPath);
+
+
+                index++;
             }
         }
     }
@@ -75,6 +94,14 @@ void VoxCraftGame::Init()
 void VoxCraftGame::Update(float deltaTime)
 {
     Application::Update(deltaTime);
+
+    static bool lastRightButton = false;
+    bool rightButton = window->GetInputComponent()->GetMouseState().buttons[3];
+    if (rightButton && !lastRightButton) {
+        window->ToggleRelativeMouseMode();
+    }
+    lastRightButton = rightButton;
+
     if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_F)) {
         if (!Engine::GetCurrentContext().GetWorld()->GetActors().empty()) {
             int idx = std::rand() % Engine::GetCurrentContext().GetWorld()->GetActors().size();
