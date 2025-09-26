@@ -54,19 +54,18 @@ void VoxCraftGame::Init()
     auto playerPawn = m_world->SpawnActor<AVoxCraftPlayer>();
     m_localPlayer->GetController()->Possess(playerPawn);
     glm::vec3 offset = glm::vec3(1.0f, 3.0f, 2.0f);
-   // testPlayer = m_world->SpawnActor<LocalPlayer>();
-    /*auto model = m_world->SpawnActor<TestCube>();
+    auto model = m_world->SpawnActor<TestCube>();
     glm::vec3 pos = glm::vec3(0, 0, 15) * 2.0f;
     model->GetComponent<UTransformComponent>()->SetPosition(pos);
-    model->GetComponent<UTransformComponent>()->scale = glm::vec3(2);
+    model->GetComponent<UTransformComponent>()->scale = glm::vec3(1);
     model->GetComponent<UTransformComponent>()->rotation = glm::quat(glm::vec3(67.5f, 0.0f, 0.0f));
-    bool isLoaded = model->GetComponent<UMeshComponent>()->Mesh->LoadFromOBJ("mesh_voxelized.obj");
-    model->GetComponent<UMeshComponent>()->Texture->LoadFromFile("Test.png");*/
+    bool isLoaded = model->GetComponent<UMeshComponent>()->Mesh->LoadFromOBJ("12140_Skull_v3_L2.obj");
+    model->GetComponent<UMeshComponent>()->Texture->LoadFromFile("Skull.jpg");
 
-    /*if (!isLoaded)
+    if (!isLoaded)
     {
         LOG_ERROR("Application", "Failed to load model");
-    }*/
+    }
     std::vector<std::string> texturePaths = {
         "minecraft_desk.png",
         "minecraft_dirt.jpg",
