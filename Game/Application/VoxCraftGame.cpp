@@ -12,6 +12,7 @@
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
+#include "Core/Utils/FileSystem.h"
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 #include "ECS/Player/AVoxCraftPlayer.h"
 #include "Platform/Window/SDL3/SDL3Window.h"
@@ -25,7 +26,8 @@ public:
         AddComponent(std::make_shared<UTransformComponent>());
         auto mesh = std::make_shared<UMeshComponent>();
         mesh->Mesh = std::make_shared<UMesh>();
-        Engine::FileLoaders::ImageLoader::Load("DirtBlock (1).png", mesh->Texture);
+        std::vector<uint8_t> testBlock = static_cast<VoxCraftGame*>(Engine::GetCurrentContext().Get())->voxCraftPak.ReadFileWithOverride("Textures/Blocks/Dirt/Block.png");
+        Engine::FileLoaders::ImageLoader::Load(testBlock, mesh->Texture);
         AddComponent(mesh);
 
         GenerateChunk(chunkSize);
@@ -157,6 +159,12 @@ VoxCraftGame::~VoxCraftGame()
 void VoxCraftGame::Init()
 {
     Application::Init();
+    bool mainPakLoaded = voxCraftPak.Open(Engine::FileSystem::GetWorkingDirectory() + "Content/Paks/VoxCraftRes.voxpak");
+    if (!mainPakLoaded)
+    {
+        LOG_FATAL("Application", "Failed to load VoxCraftRes.voxpak");
+        return;
+    }
     m_world = std::make_shared<UWorld>();
     m_localPlayer = std::make_shared<ULocalPlayer>();
 

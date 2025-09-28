@@ -71,9 +71,9 @@ __declspec(dllexport)
 #endif
 int GameEntry() {
 
-    /*Pack(fs::path("Content/Mods/TestMod/VulkanShaders"), "Content/Paks/VulkanShaders.voxpak");
+    /*Pack(fs::path("Content/VoxCraftRes"), "Content/Paks/VoxCraftRes.voxpak");
     //std::cout << "Platform: " << PLATFORM << "\n";
-    std::cout << "Working Directory: " << FileSystem::GetWorkingDirectory() << "\n";
+    std::cout << "Working Directory: " << Engine::FileSystem::GetWorkingDirectory() << "\n";
     VoxPak pak;
     pak.Open("Content.voxpak");
     for(auto& f: pak.ListFiles()) cout << f << "\n";

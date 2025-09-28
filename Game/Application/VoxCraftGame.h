@@ -14,4 +14,6 @@ class VoxCraftGame : public Engine::Application {
         void Update(float deltaTime) override;
         void Run() override;
 
+    VoxPak voxCraftPak;
+
 };
