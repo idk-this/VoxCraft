@@ -4,6 +4,8 @@
 
 #pragma once
 #include "Application/Application.h"
+#include "Core/CVar/Console.h"
+#include "Core/CVar/CVar.h"
 
 struct PairHash {
     size_t operator()(const std::pair<int,int>& p) const noexcept {
@@ -23,6 +25,9 @@ class VoxCraftGame : public Engine::Application {
         VoxCraftGame();
         ~VoxCraftGame() override;
         std::shared_ptr<AChunk> LoadChunkAt(int cx, int cz);
+
+        void TestSay2(const CommandArgs& args);
+        void TestUpdated(const CVarValue& oldValue, const CVarValue& newValue);
 
         void UnloadChunkAt(int cx, int cz);
         void LoadChunksAround(int centerCx, int centerCz);

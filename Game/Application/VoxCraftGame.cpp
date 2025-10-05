@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "imgui.h"
+#include "Core/CVar/Console.h"
 #include "ECS/Player/AVoxCraftPlayerController.h"
 #include "Core/CVar/CVar.h"
 #include "Core/ECS/Base/UWorld.h"
@@ -17,6 +18,7 @@
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
+#include "Core/UI/ConsoleUI.h"
 #include "Core/Utils/FileSystem.h"
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 #include "ECS/Player/AVoxCraftPlayer.h"
@@ -25,15 +27,24 @@
 #include "ECS/World/AChunk.h"
 #include "ECS/World/Generators/UWorldGenerator.h"
 
-
-
+REGISTER_COMMAND_CALLBACK("say", "Print text to chat", [](const CommandArgs& args){
+    if (args.empty()) return;
+    std::string msg;
+    for (auto& a : args) msg += a + " ";
+    LOG_INFO("Say", "{}", msg);
+});
+REGISTER_COMMAND("asd", "Print text to chat");
+DECLARE_CONVAR("t_test", 1, "test value", CVAR_RUNTIME_ONLY | CVAR_CONSOLE_EDIT);
 
 VoxCraftGame::VoxCraftGame()
 : Engine::Application()
 {
     SET_CVAR("w_title", "VoxCraft Beta");
     SET_CVAR("sv_allow_modding", true);
-
+    SUBSCRIBE_COMMAND("asd", TestSay2);
+    DECLARE_CVAR_CALLBACK("t_test", [this](const CVarValue& oldValue, const CVarValue& newValue) {
+         this->TestUpdated(oldValue, newValue);
+     });
 }
 
 VoxCraftGame::~VoxCraftGame()
@@ -59,6 +70,27 @@ std::shared_ptr<AChunk> VoxCraftGame::LoadChunkAt(int cx, int cz) {
         m_loadedChunks[key] = chunkActor;
     }
     return m_loadedChunks[key];
+}
+
+void VoxCraftGame::TestSay2(const CommandArgs& args)
+{
+    LOG_INFO("TestSay2", "Got tp command with {} args", args.size());
+}
+
+void VoxCraftGame::TestUpdated(const CVarValue& oldValue, const CVarValue& newValue)
+{
+    auto toStr = [](const CVarValue& v) {
+        return std::visit([](auto&& val) -> std::string {
+            if constexpr (std::is_same_v<std::decay_t<decltype(val)>, bool>)
+                return val ? "true" : "false";
+            else if constexpr (std::is_same_v<std::decay_t<decltype(val)>, std::string>)
+                return val;
+            else
+                return std::to_string(val);
+        }, v);
+    };
+
+    LOG_INFO("CVar update", "Updated t_test old: {} new: {}", toStr(oldValue), toStr(newValue));
 }
 
 void VoxCraftGame::UnloadChunkAt(int cx, int cz) {
@@ -125,6 +157,7 @@ void VoxCraftGame::LoadChunksAround(int centerCx, int centerCz) {
 void VoxCraftGame::Init()
 {
     Application::Init();
+    ConsoleSystem::Instance().Execute("say Hello World!!!");
     bool mainPakLoaded = voxCraftPak.Open(Engine::FileSystem::GetWorkingDirectory() + "Content/Paks/VoxCraftRes.voxpak");
     if (!mainPakLoaded)
     {
@@ -371,10 +404,10 @@ std::optional<BlockHit> TraceBlockDDA(AChunk* chunk,
     return std::nullopt;
 }
 
-
+ConsoleUI console;
 void VoxCraftGame::Update(float deltaTime)
 {
-
+    console.Draw();
     Application::Update(deltaTime);
     ImGui::Begin("LocalPlayer");
     glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
@@ -457,7 +490,8 @@ void VoxCraftGame::Run()
 {
     Application::Run();
     m_logSystem->add_output("*", std::cout);
-
+    console.InitializeLoggerHook(m_logSystem.get());
+    //uim_logSystem->add_output("*", std::cout);
     LOG_INFO("Application", "Creating window.");
     window = std::make_unique<SDL3Window>();
     if (!window->Create(GET_CVAR(int, "w_size_width"),
