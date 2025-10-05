@@ -8,20 +8,19 @@
 #include "Core/Log/Logger.h"
 
 
+class UWorldGenerator;
+
 class AChunk : public AActor {
     UCLASS(AChunk);
 public:
-    AChunk();
+    AChunk(glm::ivec3 chunkCoord, UWorldGenerator* worldGenerator);
     void GenerateChunk();
     void UpdateMesh();
-    // Получение и установка блока
     void SetBlock(int x, int y, int z, uint8_t blockId);
     uint8_t GetBlock(int x, int y, int z) const;
     FAABB GetBoundingBox() override {
         auto transform = GetComponent<UTransformComponent>();
         if (!transform) {
-            LOG_INFO("AABB", "Actor ID: {} GetBoundingBox: no transform, returning default [-0.5,0.5]",
-                     GetObjectID().index);
             return { glm::vec3(-0.5f), glm::vec3(0.5f) };
         }
 
@@ -30,17 +29,12 @@ public:
         glm::vec3 min = pos;
         glm::vec3 max = pos + glm::vec3(m_chunkSize * blockSize);
 
-        LOG_INFO("AABB", "Actor ID: {} GetBoundingBox: pos=({}, {}, {})  Min=({}, {}, {})  Max=({}, {}, {})",
-                 GetObjectID().index,
-                 pos.x, pos.y, pos.z,
-                 min.x, min.y, min.z,
-                 max.x, max.y, max.z);
-
         return { min, max };
     }
 
 private:
-
+    UWorldGenerator* m_worldGenerator;
+    glm::ivec3 m_chunkCoord;
     uint8_t m_chunkSize = 16;
     std::vector<uint8_t> m_blocks; // храним все блоки чанка
 };

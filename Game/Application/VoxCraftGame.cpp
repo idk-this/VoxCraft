@@ -4,9 +4,11 @@
 
 #include "VoxCraftGame.h"
 
+#include <unordered_set>
+#include <set>
+#include <utility>
 
-
-
+#include "imgui.h"
 #include "ECS/Player/AVoxCraftPlayerController.h"
 #include "Core/CVar/CVar.h"
 #include "Core/ECS/Base/UWorld.h"
@@ -21,6 +23,8 @@
 #include "Platform/Window/SDL3/SDL3Window.h"
 #include "Platform/Window/Components/WindowInputComponent.h"
 #include "ECS/World/AChunk.h"
+#include "ECS/World/Generators/UWorldGenerator.h"
+
 
 
 
@@ -36,6 +40,88 @@ VoxCraftGame::~VoxCraftGame()
 {
 }
 
+
+std::shared_ptr<AChunk> VoxCraftGame::LoadChunkAt(int cx, int cz) {
+    std::pair<int,int> key = {cx, cz};
+    if (m_loadedChunks.find(key) != m_loadedChunks.end()) {
+        return m_loadedChunks[key];
+    }
+    auto chunkActor = m_world->SpawnActor<AChunk>(glm::ivec3(cx, 0, cz), m_worldGenerator.get());
+    if (chunkActor) {
+        glm::vec3 pos = glm::vec3(
+            cx * m_chunkSize * m_blockSize,
+            0.0f,
+            cz * m_chunkSize * m_blockSize
+        );
+        if (auto tr = chunkActor->GetComponent<UTransformComponent>()) {
+            tr->SetPosition(pos);
+        }
+        m_loadedChunks[key] = chunkActor;
+    }
+    return m_loadedChunks[key];
+}
+
+void VoxCraftGame::UnloadChunkAt(int cx, int cz) {
+    std::pair<int,int> key = {cx, cz};
+    auto it = m_loadedChunks.find(key);
+    if (it == m_loadedChunks.end()) return;
+
+    if (it->second) {
+        m_world->DestroyActor(it->second);
+    }
+    m_loadedChunks.erase(it);
+}
+
+void VoxCraftGame::LoadChunksAround(int centerCx, int centerCz) {
+    using ChunkKey = std::pair<int,int>;
+
+    if (!m_worldGenerator) {
+        LOG_WARN("Chunks", "World generator is null — skip LoadChunksAround");
+        return;
+    }
+
+    std::unordered_set<ChunkKey, PairHash> desired;
+    desired.reserve((2 * m_renderRadius + 1) * (2 * m_renderRadius + 1));
+    for (int dz = -m_renderRadius; dz <= m_renderRadius; ++dz) {
+        for (int dx = -m_renderRadius; dx <= m_renderRadius; ++dx) {
+            desired.emplace(centerCx + dx, centerCz + dz);
+        }
+    }
+    std::unordered_set<ChunkKey, PairHash> loadedKeys;
+    loadedKeys.reserve(m_loadedChunks.size());
+    for (const auto &kv : m_loadedChunks) {
+        loadedKeys.insert(kv.first);
+    }
+
+    std::vector<ChunkKey> toLoad;
+    toLoad.reserve(desired.size());
+    for (const auto &k : desired) {
+        if (loadedKeys.find(k) == loadedKeys.end()) toLoad.push_back(k);
+    }
+
+    std::vector<ChunkKey> toUnload;
+    toUnload.reserve(loadedKeys.size());
+    for (const auto &k : loadedKeys) {
+        if (desired.find(k) == desired.end()) toUnload.push_back(k);
+    }
+
+    for (const auto &k : toLoad) {
+        LOG_INFO("Chunks", "Loading chunk at ({}, {})", k.first, k.second);
+        auto chunk = LoadChunkAt(k.first, k.second);
+        if (!chunk) {
+            LOG_WARN("Chunks", "LoadChunkAt returned null for ({}, {})", k.first, k.second);
+            continue;
+        }
+    }
+
+    for (const auto &k : toUnload) {
+        LOG_INFO("Chunks", "Unloading chunk at ({}, {})", k.first, k.second);
+        UnloadChunkAt(k.first, k.second);
+    }
+
+    LOG_INFO("Chunks", "After LoadChunksAround center=({}, {}) loaded_count={}",
+             centerCx, centerCz, m_loadedChunks.size());
+}
 void VoxCraftGame::Init()
 {
     Application::Init();
@@ -45,7 +131,8 @@ void VoxCraftGame::Init()
         LOG_FATAL("Application", "Failed to load VoxCraftRes.voxpak");
         return;
     }
-    m_world = std::make_shared<UWorld>();
+
+
     m_localPlayer = std::make_shared<ULocalPlayer>();
 
     auto playerContoller = m_world->SpawnActor<AVoxCraftPlayerController>();
@@ -53,23 +140,19 @@ void VoxCraftGame::Init()
     auto playerPawn = m_world->SpawnActor<AVoxCraftPlayer>();
     m_localPlayer->GetController()->Possess(playerPawn);
 
+    m_worldGenerator = std::make_shared<UWorldGenerator>();
 
-    const int worldSize = 3;
-    const float blockSize = 1.0f;
+    m_chunkSize = 16;
+    m_blockSize = 1.0f;
+    m_renderRadius = 1;
+    glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
 
-    for (int cx = 0; cx < worldSize; ++cx) {
-        for (int cz = 0; cz < worldSize; ++cz) {
-            auto chunk = m_world->SpawnActor<AChunk>();
-            std::cout << "Chunk: " << chunk->GetObjectID().index << std::endl;
-            glm::vec3 pos = glm::vec3(
-                cx * 16 * blockSize,
-                0,
-                cz * 16 * blockSize
-            );
-            chunk->GetComponent<UTransformComponent>()->SetPosition(pos);
-        }
-    }
+    int cx = static_cast<int>(std::floor(playerPos.x / (m_chunkSize * m_blockSize)));
+    int cz = static_cast<int>(std::floor(playerPos.z / (m_chunkSize * m_blockSize)));
+    m_currentCenterChunk = {cx, cz};
+    LoadChunksAround(cx, cz);
 }
+
 
 std::optional<glm::ivec3> GetBlockCoordsFromHit(AChunk* chunk, const glm::vec3& hitLocation, float blockSize = 1.0f) {
     if (!chunk) return std::nullopt;
@@ -79,17 +162,16 @@ std::optional<glm::ivec3> GetBlockCoordsFromHit(AChunk* chunk, const glm::vec3& 
 
     glm::vec3 localPos = hitLocation - transform->position;
 
-    int chunkSize = 16; // вместо захардкоженного 16
+    int chunkSize = 16;
 
     int x = glm::clamp(static_cast<int>(std::floor(localPos.x / blockSize)), 0, chunkSize - 1);
     int y = glm::clamp(static_cast<int>(std::floor(localPos.y / blockSize)), 0, chunkSize - 1);
-    int z = glm::clamp(static_cast<int>(std::floor(localPos.z / blockSize)), 0, chunkSize - 1);
+    int z = glm::clamp(static_cast<int>(std::floor(localPos.z / blockSize)), 0, 256 - 1);
 
     if (x >= 0 && x < chunkSize &&
         y >= 0 && y < chunkSize &&
-        z >= 0 && z < chunkSize)
+        z >= 0 && z < 256)
     {
-        // Возвращаем координаты даже если блок пустой
         return glm::ivec3(x, y, z);
     }
 
@@ -106,7 +188,6 @@ std::optional<glm::ivec3> TraceBlock(AChunk* chunk,
 
     glm::vec3 localStart = start - transform->position;
 
-    // В какой блок попали стартом
     int x = static_cast<int>(std::floor(localStart.x / blockSize));
     int y = static_cast<int>(std::floor(localStart.y / blockSize));
     int z = static_cast<int>(std::floor(localStart.z / blockSize));
@@ -144,10 +225,8 @@ std::optional<glm::ivec3> TraceBlock(AChunk* chunk,
                 return glm::ivec3(x, y, z);
             }
         } else {
-            break; // вышли за чанк
+            break;
         }
-
-        // шаг по оси
         if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
             sideDist.x += deltaDist.x;
             x += step.x;
@@ -165,14 +244,19 @@ std::optional<glm::ivec3> TraceBlock(AChunk* chunk,
 
     return std::nullopt;
 }
-std::optional<glm::ivec3> TraceBlockDDA(AChunk* chunk,
-                                        const glm::vec3& rayOrigin,
-                                        const glm::vec3& rayDirNormalized,
-                                        float maxDistance,
-                                        float blockSize = 1.0f)
+struct BlockHit {
+    glm::ivec3 coords;
+    glm::ivec3 normal;
+};
+
+std::optional<BlockHit> TraceBlockDDA(AChunk* chunk,
+                                      const glm::vec3& rayOrigin,
+                                      const glm::vec3& rayDirNormalized,
+                                      float maxDistance,
+                                      float blockSize = 1.0f)
 {
     if (!chunk) return std::nullopt;
-    if (glm::length2(rayDirNormalized) < 1e-12f) return std::nullopt; // нулевой вектор
+    if (glm::length2(rayDirNormalized) < 1e-12f) return std::nullopt;
 
     const glm::vec3 chunkMin = chunk->GetComponent<UTransformComponent>()->position;
     const int chunkSize = 16;
@@ -235,32 +319,39 @@ std::optional<glm::ivec3> TraceBlockDDA(AChunk* chunk,
     float tDeltaZ = (rayDirNormalized.z == 0.0f) ? INF : (blockSize / std::abs(rayDirNormalized.z));
 
     float currentT = tStart;
+
     if (ix >= 0 && ix < chunkSize && iy >= 0 && iy < chunkSize && iz >= 0 && iz < chunkSize) {
         if (chunk->GetBlock(ix, iy, iz) != 0) {
-            return glm::ivec3(ix, iy, iz);
+            return BlockHit{ glm::ivec3(ix, iy, iz), glm::ivec3(0) };
         }
     }
 
     while (currentT <= tLimit) {
+        glm::ivec3 normal(0);
+
         if (tMaxX < tMaxY) {
             if (tMaxX < tMaxZ) {
                 ix += stepX;
                 currentT = tMaxX;
                 tMaxX += tDeltaX;
+                normal = { -stepX, 0, 0 };
             } else {
                 iz += stepZ;
                 currentT = tMaxZ;
                 tMaxZ += tDeltaZ;
+                normal = { 0, 0, -stepZ };
             }
         } else {
             if (tMaxY < tMaxZ) {
                 iy += stepY;
                 currentT = tMaxY;
                 tMaxY += tDeltaY;
+                normal = { 0, -stepY, 0 };
             } else {
                 iz += stepZ;
                 currentT = tMaxZ;
                 tMaxZ += tDeltaZ;
+                normal = { 0, 0, -stepZ };
             }
         }
 
@@ -273,23 +364,38 @@ std::optional<glm::ivec3> TraceBlockDDA(AChunk* chunk,
         if (currentT > tLimit) break;
 
         if (chunk->GetBlock(ix, iy, iz) != 0) {
-            return glm::ivec3(ix, iy, iz);
+            return BlockHit{ glm::ivec3(ix, iy, iz), normal };
         }
     }
 
     return std::nullopt;
 }
 
+
 void VoxCraftGame::Update(float deltaTime)
 {
-    Application::Update(deltaTime);
 
+    Application::Update(deltaTime);
+    ImGui::Begin("LocalPlayer");
+    glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
+    glm::quat relativeRot = m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation;      // <- Твой кватернион
+    glm::vec3 euler = glm::eulerAngles(relativeRot);
+    glm::vec3 eulerDeg = glm::degrees(euler);
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Player Position");
+    ImGui::Text("X: %.2f   Y: %.2f   Z: %.2f", playerPos.x, playerPos.y, playerPos.z);
+    ImGui::TextColored(ImVec4(0.8f, 0.6f, 1.0f, 1.0f), "Camera Rotation (Euler)");
+    ImGui::Text("Pitch: %.2f   Yaw: %.2f   Roll: %.2f",
+                m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.x, m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.y, m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.z);
+
+
+    ImGui::End();
     static bool lastRightButton = false;
     bool rightButton = window->GetInputComponent()->GetMouseState().buttons[3];
     if (rightButton && !lastRightButton) {
         window->ToggleRelativeMouseMode();
     }
     lastRightButton = rightButton;
+
 
     if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_F)) {
         if (!Engine::GetCurrentContext().GetWorld()->GetActors().empty()) {
@@ -298,30 +404,33 @@ void VoxCraftGame::Update(float deltaTime)
             Engine::GetCurrentContext().GetWorld()->DestroyActor(victim);
         }
     }
+
     if (window->GetInputComponent()->GetMouseState().buttons[1])
     {
         auto* player = static_cast<AVoxCraftPlayer*>(m_localPlayer->GetController()->GetPawn().get());
         UCameraComponent* camera = player->GetComponent<UCameraComponent>();
-        glm::vec3 cameraPos = camera->GetWorldPosition();
-        glm::vec3 forwardVec = player->GetComponent<UTransformComponent>()->GetForwardVector();
-        std::cout << "CameraPos: "
-          << cameraPos.x << ", "
-          << cameraPos.y << ", "
-          << cameraPos.z << std::endl;
-
-        std::cout << "ForwardVec: "
-                  << forwardVec.x << ", "
-                  << forwardVec.y << ", "
-                  << forwardVec.z << std::endl;
         auto hit = m_world->LineTrace(camera->GetWorldPosition(), camera->GetForwardVector(), 500.0f, m_localPlayer->GetController()->GetPawn().get() );
 
         if (hit.bHit) {
             if (auto* chunk = dynamic_cast<AChunk*>(hit.HitActor.get())) {
                auto blockCoords = TraceBlockDDA(chunk, camera->GetWorldPosition(), glm::normalize(camera->GetForwardVector()), 500.0f);
                 if (blockCoords) {
-                    LOG_INFO("HIT", "Block: {} {} {} ({})", blockCoords->x, blockCoords->y, blockCoords->z, chunk->GetBlock(blockCoords->x, blockCoords->y, blockCoords->z));
-                    chunk->SetBlock(blockCoords->x, blockCoords->y, blockCoords->z, 0);
+                    LOG_INFO("HIT", "Block: {} {} {} ({})", blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z, chunk->GetBlock(blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z));
+                    chunk->SetBlock(blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z, 0);
                 }
+            }
+        }
+    }
+    {
+        auto* playerPawn = m_localPlayer->GetController()->GetPawn().get();
+        if (playerPawn) {
+            glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
+            int cx = static_cast<int>(std::floor(playerPos.x / (m_chunkSize * m_blockSize)));
+            int cz = static_cast<int>(std::floor(playerPos.z / (m_chunkSize * m_blockSize)));
+
+            if (std::pair<int,int>{cx, cz} != m_currentCenterChunk) {
+                m_currentCenterChunk = {cx, cz};
+                LoadChunksAround(cx, cz);
             }
         }
     }
@@ -340,37 +449,48 @@ void VoxCraftGame::Update(float deltaTime)
             }
         }
     }
+
+
 }
 
 void VoxCraftGame::Run()
 {
     Application::Run();
     m_logSystem->add_output("*", std::cout);
-    LOG_INFO("Application", "Initializing engine.");
-    Init();
-    LOG_INFO("Application", "Initialization successful.");
+
     LOG_INFO("Application", "Creating window.");
     window = std::make_unique<SDL3Window>();
-    if (!window->Create(GET_CVAR(int, "w_size_width"), GET_CVAR(int, "w_size_height"), GET_CVAR(std::string, "w_title"))) {
-        LOG_INFO("Application", "Window creation failed. Parameters: width({}) height({}) title({})", GET_CVAR(int, "w_size_width"), GET_CVAR(int, "w_size_height"), GET_CVAR(std::string, "w_title"));
+    if (!window->Create(GET_CVAR(int, "w_size_width"),
+                        GET_CVAR(int, "w_size_height"),
+                        GET_CVAR(std::string, "w_title"))) {
+        LOG_FATAL("Application", "Window creation failed. Parameters: width({}) height({}) title({})",
+                  GET_CVAR(int, "w_size_width"),
+                  GET_CVAR(int, "w_size_height"),
+                  GET_CVAR(std::string, "w_title"));
         return;
-    }
+                        }
+    m_world = std::make_shared<UWorld>();
     LOG_INFO("Application", "Creating Vulkan renderer.");
-
     renderer = std::make_unique<VulkanRenderer>();
-
     if (!renderer->Init(window.get(), m_world.get())) {
         LOG_FATAL("Application", "Failed to initialize Vulkan renderer.");
         return;
     }
 
+    auto* imguiContext = Engine::GetCurrentContext().GetImGui()->GetContext();
+    ImGui::SetCurrentContext(imguiContext);
 
+    LOG_INFO("Application", "Initializing game world.");
+    Init();
+
+    LOG_INFO("Application", "Initialization successful.");
     LOG_INFO("Application", "Starting main loop.");
     MainLoop();
+
     LOG_INFO("Application", "Main loop terminated. Shutting down renderer.");
     renderer->Cleanup();
     LOG_INFO("Application", "Renderer cleaned up. Executing shutdown procedures.");
     Shutdown();
     LOG_INFO("Application", "Shutdown complete.");
-
 }
+

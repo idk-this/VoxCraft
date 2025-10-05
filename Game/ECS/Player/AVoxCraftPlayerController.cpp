@@ -16,9 +16,16 @@ void AVoxCraftPlayerController::Update(float deltaTime)
     APlayerController::Update(deltaTime);
     IWindow* window = Engine::GetCurrentContext().GetWindow();
     if (!window->IsRelativeMouseMode()) return;
-    float moveSpeed = (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_LEFT_SHIFT) ? 8.0f : 3.0f) * deltaTime;
+    float moveSpeed = (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_LEFT_SHIFT) ? Speed*2.5 : Speed) * deltaTime;
     auto* transform = m_pawn->GetComponent<UTransformComponent>();
-
+    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_I))
+        Speed *= 2.5;
+    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_P))
+        Speed = 3.5;
+    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_Z))
+        transform->position.y = 3.5;
+    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_X))
+        transform->position.x = 999*16;
     if (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_W))
         transform->Move(transform->GetForwardVector() * moveSpeed);
 
@@ -39,11 +46,8 @@ void AVoxCraftPlayerController::Update(float deltaTime)
 
     float sensitivity = 0.52f;
     auto* camera = m_pawn->GetComponent<UCameraComponent>();
-
-    camera->yaw += window->GetInputComponent()->GetMouseState().deltaX * sensitivity;
-    camera->pitch -= window->GetInputComponent()->GetMouseState().deltaY * sensitivity;
-
-    // Обновляем rotation трансформа
-    m_pawn->GetComponent<UTransformComponent>()->SetRotationYawPitch(camera->yaw, camera->pitch);
+    camera->AddYawPitch(window->GetInputComponent()->GetMouseState().deltaX * sensitivity,
+        -window->GetInputComponent()->GetMouseState().deltaY * sensitivity);
+    m_pawn->GetComponent<UTransformComponent>()->SetRotationYawPitch(camera->RelativeRotation.y, camera->RelativeRotation.x);
 
 }

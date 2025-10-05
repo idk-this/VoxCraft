@@ -47,7 +47,8 @@ if (EXISTS "${LIBS_SRC}" AND IS_DIRECTORY "${LIBS_SRC}")
     endif()
 endif()
 
-target_link_libraries(VoxCraftGame PRIVATE VoxCore)
+target_link_libraries(VoxCraftGame PRIVATE VoxCore
+imgui)
 
 set_target_properties(VoxCraftGame PROPERTIES
         PREFIX ""

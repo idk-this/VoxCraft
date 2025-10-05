@@ -7,7 +7,7 @@
 
 
 class AVoxCraftPlayerController : public APlayerController {
-    UCLASS("AVoxCraftPlayerController")
+    GENERATED_BODY();
 public:
     AVoxCraftPlayerController() = default;
     ~AVoxCraftPlayerController() override = default;
@@ -16,4 +16,5 @@ public:
     void UnPossess() override { APlayerController::UnPossess();};
 
     void Update(float deltaTime) override;
+    int Speed = 3;
 };

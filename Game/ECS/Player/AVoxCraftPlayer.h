@@ -12,7 +12,7 @@
 
 
 class AVoxCraftPlayer : public APawn {
-    UCLASS(AVoxCraftLocalPlayer);
+    GENERATED_BODY();
 public:
     AVoxCraftPlayer() {
         AddComponent(std::make_shared<UCameraComponent>());

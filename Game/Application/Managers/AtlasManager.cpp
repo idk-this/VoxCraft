@@ -17,7 +17,6 @@ BlockUV AtlasManager::RegisterBlockAtlas(const std::string& path) {
         throw std::runtime_error("Failed to load block texture: " + path);
     }
 
-    // если нет атласов → создаём первый
     if (m_atlases.empty()) {
         m_atlases.push_back(CreateEmptyAtlas());
     }
