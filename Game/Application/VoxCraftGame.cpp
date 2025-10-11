@@ -33,7 +33,6 @@ REGISTER_COMMAND_CALLBACK("say", "Print text to chat", [](const CommandArgs& arg
     for (auto& a : args) msg += a + " ";
     LOG_INFO("Say", "{}", msg);
 });
-REGISTER_COMMAND("asd", "Print text to chat");
 DECLARE_CONVAR("t_test", 1, "test value", CVAR_RUNTIME_ONLY | CVAR_CONSOLE_EDIT);
 
 VoxCraftGame::VoxCraftGame()

@@ -8,8 +8,8 @@
 #include "Core/CVar/Console.h"
 #include "Core/Log/Logger.h"
 
-REGISTER_COMMAND("setpos", "Set player position");
-REGISTER_COMMAND("setang", "Set player view angle");
+REGISTER_COMMANDF("setpos", "Set player position", CMD_CHEAT);
+REGISTER_COMMANDF("setang", "Set player view angle", CMD_CHEAT);
 DECLARE_CONVAR("viewmodel_fov", 90, "Player camera fov", CVAR_RUNTIME_ONLY | CVAR_CONSOLE_EDIT);
 
 
