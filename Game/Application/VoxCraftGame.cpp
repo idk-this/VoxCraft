@@ -43,7 +43,8 @@ VoxCraftGame::VoxCraftGame()
     SET_CVAR("sv_allow_modding", true);
     SUBSCRIBE_COMMAND("asd", TestSay2);
     DECLARE_CVAR_CALLBACK("t_test", [this](const CVarValue& oldValue, const CVarValue& newValue) {
-         this->TestUpdated(oldValue, newValue);
+
+        this->TestUpdated(oldValue, newValue);
      });
 }
 

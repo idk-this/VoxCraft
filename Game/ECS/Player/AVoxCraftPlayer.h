@@ -5,6 +5,8 @@
 #pragma once
 #include <memory>
 
+#include "Core/CVar/Console.h"
+#include "Core/CVar/CVar.h"
 #include "Core/ECS/Player/APawn.h"
 #include "Core/ECS/Components/UCameraComponent.h"
 #include "Core/ECS/Player/APlayerController.h"
@@ -12,10 +14,12 @@
 
 
 class AVoxCraftPlayer : public APawn {
-    GENERATED_BODY();
+    UCLASS(AVoxCraftPlayer);
 public:
-    AVoxCraftPlayer() {
-        AddComponent(std::make_shared<UCameraComponent>());
-    }
+    AVoxCraftPlayer();
 
+private:
+    void SetPosCMD(const CommandArgs& args);
+    void SetAngCMD(const CommandArgs& args);
+    void SetFovCVar(const CVarValue& newValue);
 };
