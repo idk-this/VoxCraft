@@ -7,6 +7,13 @@
 #include "Core/CVar/Console.h"
 #include "Core/CVar/CVar.h"
 
+namespace UISystem
+{
+    class UIElement;
+}
+
+class HudContext;
+
 struct PairHash {
     size_t operator()(const std::pair<int,int>& p) const noexcept {
         // простой хеш — достаточно для координат чанков
@@ -37,6 +44,8 @@ class VoxCraftGame : public Engine::Application {
 
     VoxPak voxCraftPak;
     WorldShift m_worldShift;
+    std::shared_ptr<HudContext> m_hudContext;
+    std::shared_ptr<UISystem::UIElement> m_hudUI;
     int m_chunkSize = 16;
     float m_blockSize = 1.0f;
     int m_renderRadius = 3;

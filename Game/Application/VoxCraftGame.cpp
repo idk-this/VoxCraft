@@ -19,6 +19,7 @@
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
 #include "Core/UI/ConsoleUI.h"
+#include "Core/UI/Core/XMLParser.h"
 #include "Core/Utils/FileSystem.h"
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 #include "ECS/Player/AVoxCraftPlayer.h"
@@ -50,7 +51,14 @@ VoxCraftGame::VoxCraftGame()
 VoxCraftGame::~VoxCraftGame()
 {
 }
+class HudContext : public UISystem::SimpleDataContext {
+public:
+    HudContext() {
+        SetProperty("CurrentPlayerPos", "Local Position: X: 999 Y: 999 Z: 999");
+        SetProperty("CurrentFps", "FPS: 999");
+    }
 
+};
 
 std::shared_ptr<AChunk> VoxCraftGame::LoadChunkAt(int cx, int cz) {
     std::pair<int,int> key = {cx, cz};
@@ -165,7 +173,9 @@ void VoxCraftGame::Init()
         return;
     }
 
-
+    UISystem::XMLUIParser hud;
+    m_hudContext = std::make_shared<HudContext>();
+    m_hudUI = hud.ParseUIFile("Content/test_hud.xml", m_hudContext.get());
     m_localPlayer = std::make_shared<ULocalPlayer>();
 
     auto playerContoller = m_world->SpawnActor<AVoxCraftPlayerController>();
@@ -177,7 +187,7 @@ void VoxCraftGame::Init()
 
     m_chunkSize = 16;
     m_blockSize = 1.0f;
-    m_renderRadius = 1;
+    m_renderRadius = 3;
     glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
 
     int cx = static_cast<int>(std::floor(playerPos.x / (m_chunkSize * m_blockSize)));
@@ -408,20 +418,58 @@ ConsoleUI console;
 void VoxCraftGame::Update(float deltaTime)
 {
     console.Draw();
+
     Application::Update(deltaTime);
-    ImGui::Begin("LocalPlayer");
-    glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
-    glm::quat relativeRot = m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation;      // <- Твой кватернион
-    glm::vec3 euler = glm::eulerAngles(relativeRot);
-    glm::vec3 eulerDeg = glm::degrees(euler);
-    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Player Position");
-    ImGui::Text("X: %.2f   Y: %.2f   Z: %.2f", playerPos.x, playerPos.y, playerPos.z);
-    ImGui::TextColored(ImVec4(0.8f, 0.6f, 1.0f, 1.0f), "Camera Rotation (Euler)");
-    ImGui::Text("Pitch: %.2f   Yaw: %.2f   Roll: %.2f",
-                m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.x, m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.y, m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation.z);
+    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_GRAVE))
+    {
+        console.Toggle();
+    }
+    if (m_hudUI)
+    {
 
+        glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
+        m_hudContext->SetProperty(
+        "CurrentPlayerPos",
+         std::format("Local Position: X: {:.2f}  Y: {:.2f}  Z: {:.2f}",
+                     playerPos.x, playerPos.y, playerPos.z)
+         );
+        m_hudContext->SetProperty(
+            "CurrentPlayerBlockPos",
+            std::format(
+                "Local Block Position: X: {}  Y: {}  Z: {}",
+                static_cast<int>(playerPos.x),
+                static_cast<int>(playerPos.y),
+                static_cast<int>(playerPos.z)
+            )
+        );
+        m_hudContext->SetProperty(
+            "CurrentPlayerChunkPos",
+            std::format(
+                "Local Chunk Position: X: {}  Y: {}",
+                static_cast<int>(m_currentCenterChunk.first),
+                static_cast<int>(m_currentCenterChunk.second)
+            )
+        );
+        auto playerRot = m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation;
+        m_hudContext->SetProperty(
+            "PlayerViewAngle",
+            std::format(
+                "View Angle (PYR): P: {:.1f}  Y: {:.1f}  R: {:.1f}",
+                playerRot.x,  // Pitch
+                playerRot.y,  // Yaw
+                playerRot.z   // Roll
+            )
+        );
+        float fps = 1.0f / deltaTime;
+        float dtMs = deltaTime * 1000.0f;
 
-    ImGui::End();
+        m_hudContext->SetProperty(
+            "CurrentFps",
+            std::format("FPS: {:.1f}  (dt: {:.2f} ms)", fps, dtMs)
+        );
+        m_hudUI->Render();
+    }
+
     static bool lastRightButton = false;
     bool rightButton = window->GetInputComponent()->GetMouseState().buttons[3];
     if (rightButton && !lastRightButton) {
@@ -429,14 +477,6 @@ void VoxCraftGame::Update(float deltaTime)
     }
     lastRightButton = rightButton;
 
-
-    if (window->GetInputComponent()->IsKeyPressed(KeyCode::KEY_F)) {
-        if (!Engine::GetCurrentContext().GetWorld()->GetActors().empty()) {
-            int idx = std::rand() % Engine::GetCurrentContext().GetWorld()->GetActors().size();
-            std::shared_ptr<AActor> victim = Engine::GetCurrentContext().GetWorld()->GetActors()[idx];
-            Engine::GetCurrentContext().GetWorld()->DestroyActor(victim);
-        }
-    }
 
     if (window->GetInputComponent()->GetMouseState().buttons[1])
     {
