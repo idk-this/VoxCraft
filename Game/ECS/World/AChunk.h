@@ -33,6 +33,7 @@ public:
     }
 
 private:
+    void UpdateCollision();
     UWorldGenerator* m_worldGenerator;
     glm::ivec3 m_chunkCoord;
     uint8_t m_chunkSize = 16;

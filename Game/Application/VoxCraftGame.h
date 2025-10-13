@@ -6,52 +6,35 @@
 #include "Application/Application.h"
 #include "Core/CVar/Console.h"
 #include "Core/CVar/CVar.h"
+#include "Core/ECS/Base/Structures/FObjectID.h"
+
+struct FObjectID;
+class AAChunkManager;
+class DebugOverlay;
 
 namespace UISystem
 {
     class UIElement;
 }
 
-class HudContext;
-
-struct PairHash {
-    size_t operator()(const std::pair<int,int>& p) const noexcept {
-        // простой хеш — достаточно для координат чанков
-        return std::hash<long long>()((static_cast<long long>(p.first) << 32) ^ static_cast<unsigned long long>(p.second));
-    }
-};
 class AChunk;
 class UWorldGenerator;
-struct WorldShift {
-    glm::ivec2 chunkOffset = {0, 0};
-    glm::ivec2 blockOffset = {0, 0};
-};
+
 
 class VoxCraftGame : public Engine::Application {
     public:
         VoxCraftGame();
         ~VoxCraftGame() override;
-        std::shared_ptr<AChunk> LoadChunkAt(int cx, int cz);
 
         void TestSay2(const CommandArgs& args);
         void TestUpdated(const CVarValue& oldValue, const CVarValue& newValue);
 
-        void UnloadChunkAt(int cx, int cz);
-        void LoadChunksAround(int centerCx, int centerCz);
         void Init() override;
         void Update(float deltaTime) override;
         void Run() override;
 
     VoxPak voxCraftPak;
-    WorldShift m_worldShift;
-    std::shared_ptr<HudContext> m_hudContext;
-    std::shared_ptr<UISystem::UIElement> m_hudUI;
-    int m_chunkSize = 16;
+    std::shared_ptr<DebugOverlay> m_debugOverlay;
+    FObjectID m_chunkManager_id;
     float m_blockSize = 1.0f;
-    int m_renderRadius = 3;
-
-    std::unordered_map<std::pair<int,int>, std::shared_ptr<AChunk>, PairHash> m_loadedChunks;
-
-    std::shared_ptr<UWorldGenerator> m_worldGenerator;
-    std::pair<int,int> m_currentCenterChunk = {INT_MIN, INT_MIN};
 };

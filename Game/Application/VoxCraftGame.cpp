@@ -18,6 +18,7 @@
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
+#include "Core/Physics/Components/UPhysicComponent.h"
 #include "Core/UI/ConsoleUI.h"
 #include "Core/UI/Core/XMLParser.h"
 #include "Core/Utils/FileSystem.h"
@@ -26,14 +27,16 @@
 #include "Platform/Window/SDL3/SDL3Window.h"
 #include "Platform/Window/Components/WindowInputComponent.h"
 #include "ECS/World/AChunk.h"
+#include "ECS/World/AChunkManager.h"
 #include "ECS/World/Generators/UWorldGenerator.h"
+#include "UI/Debug/DebugOverlay.h"
 
 REGISTER_COMMAND_CALLBACK("say", "Print text to chat", [](const CommandArgs& args){
-    if (args.empty()) return;
-    std::string msg;
-    for (auto& a : args) msg += a + " ";
-    LOG_INFO("Say", "{}", msg);
-});
+                          if (args.empty()) return;
+                          std::string msg;
+                          for (auto& a : args) msg += a + " ";
+                          LOG_INFO("Say", "{}", msg);
+                          });
 DECLARE_CONVAR("t_test", 1, "test value", CVAR_RUNTIME_ONLY | CVAR_CONSOLE_EDIT);
 
 VoxCraftGame::VoxCraftGame()
@@ -51,34 +54,7 @@ VoxCraftGame::VoxCraftGame()
 VoxCraftGame::~VoxCraftGame()
 {
 }
-class HudContext : public UISystem::SimpleDataContext {
-public:
-    HudContext() {
-        SetProperty("CurrentPlayerPos", "Local Position: X: 999 Y: 999 Z: 999");
-        SetProperty("CurrentFps", "FPS: 999");
-    }
 
-};
-
-std::shared_ptr<AChunk> VoxCraftGame::LoadChunkAt(int cx, int cz) {
-    std::pair<int,int> key = {cx, cz};
-    if (m_loadedChunks.find(key) != m_loadedChunks.end()) {
-        return m_loadedChunks[key];
-    }
-    auto chunkActor = m_world->SpawnActor<AChunk>(glm::ivec3(cx, 0, cz), m_worldGenerator.get());
-    if (chunkActor) {
-        glm::vec3 pos = glm::vec3(
-            cx * m_chunkSize * m_blockSize,
-            0.0f,
-            cz * m_chunkSize * m_blockSize
-        );
-        if (auto tr = chunkActor->GetComponent<UTransformComponent>()) {
-            tr->SetPosition(pos);
-        }
-        m_loadedChunks[key] = chunkActor;
-    }
-    return m_loadedChunks[key];
-}
 
 void VoxCraftGame::TestSay2(const CommandArgs& args)
 {
@@ -101,67 +77,7 @@ void VoxCraftGame::TestUpdated(const CVarValue& oldValue, const CVarValue& newVa
     LOG_INFO("CVar update", "Updated t_test old: {} new: {}", toStr(oldValue), toStr(newValue));
 }
 
-void VoxCraftGame::UnloadChunkAt(int cx, int cz) {
-    std::pair<int,int> key = {cx, cz};
-    auto it = m_loadedChunks.find(key);
-    if (it == m_loadedChunks.end()) return;
 
-    if (it->second) {
-        m_world->DestroyActor(it->second);
-    }
-    m_loadedChunks.erase(it);
-}
-
-void VoxCraftGame::LoadChunksAround(int centerCx, int centerCz) {
-    using ChunkKey = std::pair<int,int>;
-
-    if (!m_worldGenerator) {
-        LOG_WARN("Chunks", "World generator is null — skip LoadChunksAround");
-        return;
-    }
-
-    std::unordered_set<ChunkKey, PairHash> desired;
-    desired.reserve((2 * m_renderRadius + 1) * (2 * m_renderRadius + 1));
-    for (int dz = -m_renderRadius; dz <= m_renderRadius; ++dz) {
-        for (int dx = -m_renderRadius; dx <= m_renderRadius; ++dx) {
-            desired.emplace(centerCx + dx, centerCz + dz);
-        }
-    }
-    std::unordered_set<ChunkKey, PairHash> loadedKeys;
-    loadedKeys.reserve(m_loadedChunks.size());
-    for (const auto &kv : m_loadedChunks) {
-        loadedKeys.insert(kv.first);
-    }
-
-    std::vector<ChunkKey> toLoad;
-    toLoad.reserve(desired.size());
-    for (const auto &k : desired) {
-        if (loadedKeys.find(k) == loadedKeys.end()) toLoad.push_back(k);
-    }
-
-    std::vector<ChunkKey> toUnload;
-    toUnload.reserve(loadedKeys.size());
-    for (const auto &k : loadedKeys) {
-        if (desired.find(k) == desired.end()) toUnload.push_back(k);
-    }
-
-    for (const auto &k : toLoad) {
-        LOG_INFO("Chunks", "Loading chunk at ({}, {})", k.first, k.second);
-        auto chunk = LoadChunkAt(k.first, k.second);
-        if (!chunk) {
-            LOG_WARN("Chunks", "LoadChunkAt returned null for ({}, {})", k.first, k.second);
-            continue;
-        }
-    }
-
-    for (const auto &k : toUnload) {
-        LOG_INFO("Chunks", "Unloading chunk at ({}, {})", k.first, k.second);
-        UnloadChunkAt(k.first, k.second);
-    }
-
-    LOG_INFO("Chunks", "After LoadChunksAround center=({}, {}) loaded_count={}",
-             centerCx, centerCz, m_loadedChunks.size());
-}
 void VoxCraftGame::Init()
 {
     Application::Init();
@@ -173,27 +89,17 @@ void VoxCraftGame::Init()
         return;
     }
 
-    UISystem::XMLUIParser hud;
-    m_hudContext = std::make_shared<HudContext>();
-    m_hudUI = hud.ParseUIFile("Content/test_hud.xml", m_hudContext.get());
+    m_debugOverlay = std::make_shared<DebugOverlay>();
+    m_debugOverlay->Init();
     m_localPlayer = std::make_shared<ULocalPlayer>();
 
     auto playerContoller = m_world->SpawnActor<AVoxCraftPlayerController>();
     playerContoller->SetPlayer(m_localPlayer);
     auto playerPawn = m_world->SpawnActor<AVoxCraftPlayer>();
+    playerPawn->GetComponent<UTransformComponent>()->position = glm::vec3(0, 25, 0);
     m_localPlayer->GetController()->Possess(playerPawn);
-
-    m_worldGenerator = std::make_shared<UWorldGenerator>();
-
-    m_chunkSize = 16;
+    m_chunkManager_id = m_world->SpawnActor<AChunkManager>()->GetObjectID();
     m_blockSize = 1.0f;
-    m_renderRadius = 3;
-    glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
-
-    int cx = static_cast<int>(std::floor(playerPos.x / (m_chunkSize * m_blockSize)));
-    int cz = static_cast<int>(std::floor(playerPos.z / (m_chunkSize * m_blockSize)));
-    m_currentCenterChunk = {cx, cz};
-    LoadChunksAround(cx, cz);
 }
 
 
@@ -424,51 +330,49 @@ void VoxCraftGame::Update(float deltaTime)
     {
         console.Toggle();
     }
-    if (m_hudUI)
-    {
+    glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
+    m_debugOverlay->SetProperty(
+    "CurrentPlayerPos",
+     std::format("Local Position: X: {:.2f}  Y: {:.2f}  Z: {:.2f}",
+                 playerPos.x, playerPos.y, playerPos.z)
+     );
+    m_debugOverlay->SetProperty(
+        "CurrentPlayerBlockPos",
+        std::format(
+            "Local Block Position: X: {}  Y: {}  Z: {}",
+            static_cast<int>(playerPos.x),
+            static_cast<int>(playerPos.y),
+            static_cast<int>(playerPos.z)
+        )
+    );
+    m_debugOverlay->SetProperty(
+        "CurrentPlayerChunkPos",
+        std::format(
+            "Local Chunk Position: X: {}  Y: {} Z: {}",
+                m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetLastCenterChunk().x,
+                m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetLastCenterChunk().y,
+                m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetLastCenterChunk().z
+        )
+    );
+    auto playerRot = m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation;
+    m_debugOverlay->SetProperty(
+        "PlayerViewAngle",
+        std::format(
+            "View Angle (PYR): P: {:.1f}  Y: {:.1f}  R: {:.1f}",
+            playerRot.x,  // Pitch
+            playerRot.y,  // Yaw
+            playerRot.z   // Roll
+        )
+    );
+    float fps = 1.0f / deltaTime;
+    float dtMs = deltaTime * 1000.0f;
 
-        glm::vec3 playerPos = m_localPlayer->GetController()->GetPawn()->GetComponent<UTransformComponent>()->position;
-        m_hudContext->SetProperty(
-        "CurrentPlayerPos",
-         std::format("Local Position: X: {:.2f}  Y: {:.2f}  Z: {:.2f}",
-                     playerPos.x, playerPos.y, playerPos.z)
-         );
-        m_hudContext->SetProperty(
-            "CurrentPlayerBlockPos",
-            std::format(
-                "Local Block Position: X: {}  Y: {}  Z: {}",
-                static_cast<int>(playerPos.x),
-                static_cast<int>(playerPos.y),
-                static_cast<int>(playerPos.z)
-            )
-        );
-        m_hudContext->SetProperty(
-            "CurrentPlayerChunkPos",
-            std::format(
-                "Local Chunk Position: X: {}  Y: {}",
-                static_cast<int>(m_currentCenterChunk.first),
-                static_cast<int>(m_currentCenterChunk.second)
-            )
-        );
-        auto playerRot = m_localPlayer->GetController()->GetPawn()->GetComponent<UCameraComponent>()->RelativeRotation;
-        m_hudContext->SetProperty(
-            "PlayerViewAngle",
-            std::format(
-                "View Angle (PYR): P: {:.1f}  Y: {:.1f}  R: {:.1f}",
-                playerRot.x,  // Pitch
-                playerRot.y,  // Yaw
-                playerRot.z   // Roll
-            )
-        );
-        float fps = 1.0f / deltaTime;
-        float dtMs = deltaTime * 1000.0f;
+    m_debugOverlay->SetProperty(
+        "CurrentFps",
+        std::format("FPS: {:.1f}  (dt: {:.2f} ms)", fps, dtMs)
+    );
+    m_debugOverlay->Render();
 
-        m_hudContext->SetProperty(
-            "CurrentFps",
-            std::format("FPS: {:.1f}  (dt: {:.2f} ms)", fps, dtMs)
-        );
-        m_hudUI->Render();
-    }
 
     static bool lastRightButton = false;
     bool rightButton = window->GetInputComponent()->GetMouseState().buttons[3];
@@ -497,13 +401,14 @@ void VoxCraftGame::Update(float deltaTime)
     {
         auto* playerPawn = m_localPlayer->GetController()->GetPawn().get();
         if (playerPawn) {
-            glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
-            int cx = static_cast<int>(std::floor(playerPos.x / (m_chunkSize * m_blockSize)));
-            int cz = static_cast<int>(std::floor(playerPos.z / (m_chunkSize * m_blockSize)));
 
-            if (std::pair<int,int>{cx, cz} != m_currentCenterChunk) {
-                m_currentCenterChunk = {cx, cz};
-                LoadChunksAround(cx, cz);
+            glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
+            m_world->GetActor<AChunkManager>(m_chunkManager_id)->Update(deltaTime, playerPos);
+            if (playerPawn->HasComponent(typeid(UPhysicComponent)))
+            {
+                playerPos.y -= 1;
+                playerPawn->GetComponent<UPhysicComponent>()->SetGrounded(m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetBlock(playerPos) != 0);
+
             }
         }
     }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<HUD Name="DebugHUD" Flags="NoBackground|AlwaysAutoResize|NoInputs">
+    <ColumnSystem Name="TopLeft" Columns="1" ColumnSpan="12" BackgroundColor="#00000060" VerticalAlign="Top">
+        <TextBlock Name="FPS" Width="700" FontSize="25" Text="{Binding CurrentFps}"/>
+        <TextBlock Name="Coords" Width="700" FontSize="25" Font="Roboto-Regular"  Text="{Binding CurrentPlayerPos}"/>
+        <TextBlock Name="BlockCoords" Width="700" FontSize="25" Font="Roboto-Regular"  Text="{Binding CurrentPlayerBlockPos}"/>
+        <TextBlock Name="ChunkCoords" Width="700" FontSize="25" Text="{Binding CurrentPlayerChunkPos}"/>
+        <TextBlock Name="ViewAngle" Width="700" FontSize="25" Text="{Binding PlayerViewAngle}"/>
+    </ColumnSystem>
+
+    <ColumnSystem Name="BottomLeft" Columns="1" ColumnSpan="12" VerticalAlign="Bottom">
+        <TextBlock Name="Time" Width="200" ColumnSpan="1" Text="12:34:56"/>
+    </ColumnSystem>
+
+    <ColumnSystem Name="BottomRight" Columns="1" ColumnSpan="12"  VerticalAlign="Bottom">
+        <TextBlock Name="Build" Width="200" ColumnSpan="1" Align="Right" Text="Build: Debug"/>
+    </ColumnSystem>
+</HUD>

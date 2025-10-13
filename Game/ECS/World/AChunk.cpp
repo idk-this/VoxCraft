@@ -7,6 +7,8 @@
 #include "Application/VoxCraftGame.h"
 #include "Core/ECS/Components/UMeshComponent.h"
 #include "Core/Log/Logger.h"
+#include "Core/Physics/Components/UCollisionComponent.h"
+#include "Core/Physics/Components/UPhysicComponent.h"
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 #include "Generators/UWorldGenerator.h"
 
@@ -144,6 +146,17 @@ AChunk::AChunk(glm::ivec3 chunkCoord, UWorldGenerator* worldGenerator)
 
     m_blocks.resize(static_cast<size_t>(m_chunkSize) * static_cast<size_t>(m_chunkSize) * static_cast<size_t>(CHUNK_HEIGHT), 0);
 
+
+    auto physicsComp = std::make_shared<UPhysicComponent>();
+    physicsComp->SetUseGravity(false);
+    physicsComp->SetMass(0.0f);
+    AddComponent(physicsComp);
+
+    auto collisionComp = std::make_shared<UCollisionComponent>();
+    collisionComp->SetCollisionEnabled(true);
+    collisionComp->SetIsTrigger(false);
+    AddComponent(collisionComp);
+
     auto meshComp = std::make_shared<UMeshComponent>();
     meshComp->Mesh = std::make_shared<UMesh>();
     AddComponent(meshComp);
@@ -193,6 +206,48 @@ uint8_t AChunk::GetBlock(int x, int y, int z) const {
         }
     return m_blocks[x + y * m_chunkSize + z * (m_chunkSize * CHUNK_HEIGHT)];
 }
+
+void AChunk::UpdateCollision()
+{
+    auto collisionComp = GetComponent<UCollisionComponent>();
+    if (!collisionComp) return;
+
+    const float blockSize = 1.0f;
+
+    auto hasBlock = [&](int x, int y, int z) -> bool {
+        if (x < 0 || y < 0 || z < 0) return false;
+        if (x >= m_chunkSize || y >= CHUNK_HEIGHT || z >= m_chunkSize) return false;
+        return GetBlock(x,y,z) != 0;
+    };
+
+    collisionComp->ClearCollisionShapes();
+
+    for (int x = 0; x < m_chunkSize; x++) {
+        for (int y = 0; y < CHUNK_HEIGHT; y++) {
+            for (int z = 0; z < m_chunkSize; z++) {
+                if (!hasBlock(x, y, z)) continue;
+                bool hasNeighborXPos = hasBlock(x + 1, y, z);
+                bool hasNeighborXNeg = hasBlock(x - 1, y, z);
+                bool hasNeighborYPos = hasBlock(x, y + 1, z);
+                bool hasNeighborYNeg = hasBlock(x, y - 1, z);
+                bool hasNeighborZPos = hasBlock(x, y, z + 1);
+                bool hasNeighborZNeg = hasBlock(x, y, z - 1);
+
+                if (hasNeighborXPos && hasNeighborXNeg && hasNeighborYPos &&
+                    hasNeighborYNeg && hasNeighborZPos && hasNeighborZNeg) {
+                    continue;
+                    }
+
+                glm::vec3 blockPos(x * blockSize, y * blockSize, z * blockSize);
+                glm::vec3 extents(blockSize * 0.5f);
+
+                collisionComp->AddBoxCollision(blockPos + extents, extents);
+            }
+        }
+    }
+    collisionComp->UpdateBoundingBox();
+}
+
 void AChunk::GenerateChunk()
 {
 
@@ -328,4 +383,5 @@ void AChunk::UpdateMesh()
         }
     }
     mesh->meshDirty = true;
+    UpdateCollision();
 }

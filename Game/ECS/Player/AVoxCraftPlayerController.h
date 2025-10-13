@@ -7,7 +7,7 @@
 
 
 class AVoxCraftPlayerController : public APlayerController {
-    GENERATED_BODY();
+    UCLASS(AVoxCraftPlayerController);
 public:
     AVoxCraftPlayerController() = default;
     ~AVoxCraftPlayerController() override = default;

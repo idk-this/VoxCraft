@@ -12,6 +12,11 @@ file(GLOB_RECURSE GAME_SRC
         ECS/*.cpp
         ECS/**/*.h
         ECS/**/*.cpp
+        UI/*.h
+        UI/*.cpp
+        UI/**/*.h
+        UI/**/*.cpp
+
 )
 if(WIN32)
     add_compile_definitions(PLATFORM_WINDOWS)
