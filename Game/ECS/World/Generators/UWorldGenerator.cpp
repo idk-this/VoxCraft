@@ -12,7 +12,6 @@ uint64_t UWorldGenerator::GetSeed() const {
     return m_seed;
 }
 
-// --- быстрый "шум" ---
 float UWorldGenerator::HashNoise(int x, int z) const {
     uint64_t h = std::hash<uint64_t>()(((uint64_t)(int64_t)x << 32) ^ (uint64_t)(int64_t)z ^ m_seed);
     h ^= (h >> 33);
@@ -20,12 +19,9 @@ float UWorldGenerator::HashNoise(int x, int z) const {
     h ^= (h >> 33);
     h *= 0xc4ceb9fe1a85ec53ULL;
     h ^= (h >> 33);
-    return (h & 0xFFFFFF) / float(0xFFFFFF); // [0..1]
+    return (h & 0xFFFFFF) / float(0xFFFFFF);
 }
 
-// ==========================
-//   ВСПОМОГАТЕЛЬНО: Генерация клетки
-// ==========================
 BiomeCell UWorldGenerator::GenerateCell(int x, int z) const {
     auto smoothNoise = [&](float fx, float fz, float scale) {
         int xi = int(std::floor(fx / scale));
@@ -57,7 +53,6 @@ BiomeCell UWorldGenerator::GenerateCell(int x, int z) const {
     if (h < 0) h = 0;
     if (h > 1) h = 1;
 
-    // здесь worldHeight мы не знаем — пусть max = 256 (можно параметризовать)
     int worldHeight = 32;
     int height = std::clamp(1 + int(h * (worldHeight - 2)), 1, worldHeight - 1);
 
@@ -69,15 +64,12 @@ BiomeCell UWorldGenerator::GenerateCell(int x, int z) const {
     return cell;
 }
 
-// ==========================
-//   ГЕНЕРАЦИЯ ЧАНКА
-// ==========================
 std::vector<uint8_t> UWorldGenerator::GenerateChunkBlocks(glm::ivec3 chunkCoord, int chunkSize, int worldHeight) {
     std::vector<uint8_t> blocks((size_t)chunkSize * (size_t)chunkSize * (size_t)worldHeight, 0);
 
     int baseX = chunkCoord.x * chunkSize;
     int baseZ = chunkCoord.z * chunkSize;
-    int baseY = chunkCoord.y * worldHeight; // вертикальная стратификация
+    int baseY = chunkCoord.y * worldHeight;
 
     for (int x = 0; x < chunkSize; ++x) {
         for (int z = 0; z < chunkSize; ++z) {
@@ -87,11 +79,11 @@ std::vector<uint8_t> UWorldGenerator::GenerateChunkBlocks(glm::ivec3 chunkCoord,
                 int worldY = baseY + y;
                 if (worldY < 0 || worldY >= worldHeight) continue;
 
-                uint8_t blockId = 0; // воздух
+                uint8_t blockId = 0;
                 if (worldY == 0) {
-                    blockId = 1; // Bedrock
+                    blockId = 1;
                 } else if (worldY > cell.height) {
-                    blockId = 0; // воздух
+                    blockId = 0;
                 } else if (worldY < cell.height - 3) {
                     blockId = cell.stone;
                 } else if (worldY < cell.height) {

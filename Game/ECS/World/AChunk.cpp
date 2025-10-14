@@ -21,8 +21,6 @@ struct BlockAtlasInfo {
     BlockFaceUV faces[6];
 };
 
-constexpr int CHUNK_HEIGHT = 32;
-
 static std::vector<std::string> g_blockAtlases = {
     "Textures/Blocks/Bedrock/Block.png",
     "Textures/Blocks/Dirt/Block.png",
@@ -138,13 +136,16 @@ static bool BuildCombinedAtlas(
     return true;
 }
 
-AChunk::AChunk(glm::ivec3 chunkCoord, UWorldGenerator* worldGenerator)
+AChunk::AChunk(glm::ivec3 chunkCoord, int chunkWidth, int chunkHeight, int chunkDepth , UWorldGenerator* worldGenerator)
 {
     m_chunkCoord = chunkCoord;
     m_worldGenerator = worldGenerator;
+    m_chunkSize_w = chunkWidth;
+    m_chunkSize_h = chunkHeight;
+    m_chunkSize_d = chunkDepth;
     AddComponent(std::make_shared<UTransformComponent>());
 
-    m_blocks.resize(static_cast<size_t>(m_chunkSize) * static_cast<size_t>(m_chunkSize) * static_cast<size_t>(CHUNK_HEIGHT), 0);
+    m_blocks.resize(static_cast<size_t>(m_chunkSize_w) * static_cast<size_t>(m_chunkSize_d) * static_cast<size_t>(chunkHeight), 0);
 
 
     auto physicsComp = std::make_shared<UPhysicComponent>();
@@ -189,11 +190,14 @@ static int s_bigAtlasWidth = 0;
 static int s_bigAtlasHeight = 0;
 void AChunk::SetBlock(int x, int y, int z, uint8_t blockId) {
     if (x < 0 || y < 0 || z < 0 ||
-           x >= m_chunkSize || y >= CHUNK_HEIGHT || z >= m_chunkSize) {
+           x >= m_chunkSize_w || y >= m_chunkSize_h || z >= m_chunkSize_d) {
         return;
            }
 
-    int idx = x + y * m_chunkSize + z * (m_chunkSize * CHUNK_HEIGHT);
+    int idx = x
+            + y * m_chunkSize_w
+            + z * (m_chunkSize_w * m_chunkSize_h);
+
     m_blocks[idx] = blockId;
     UpdateMesh();
 
@@ -201,12 +205,16 @@ void AChunk::SetBlock(int x, int y, int z, uint8_t blockId) {
 
 uint8_t AChunk::GetBlock(int x, int y, int z) const {
     if (x < 0 || y < 0 || z < 0 ||
-        x >= m_chunkSize || y >= CHUNK_HEIGHT || z >= m_chunkSize) {
+        x >= m_chunkSize_w || y >= m_chunkSize_h || z >= m_chunkSize_d) {
         return 0;
         }
-    return m_blocks[x + y * m_chunkSize + z * (m_chunkSize * CHUNK_HEIGHT)];
-}
 
+    int idx = x
+            + y * m_chunkSize_w
+            + z * (m_chunkSize_w * m_chunkSize_h);
+
+    return m_blocks[idx];
+}
 void AChunk::UpdateCollision()
 {
     auto collisionComp = GetComponent<UCollisionComponent>();
@@ -216,16 +224,17 @@ void AChunk::UpdateCollision()
 
     auto hasBlock = [&](int x, int y, int z) -> bool {
         if (x < 0 || y < 0 || z < 0) return false;
-        if (x >= m_chunkSize || y >= CHUNK_HEIGHT || z >= m_chunkSize) return false;
-        return GetBlock(x,y,z) != 0;
+        if (x >= m_chunkSize_w || y >= m_chunkSize_h || z >= m_chunkSize_d) return false;
+        return GetBlock(x, y, z) != 0;
     };
 
     collisionComp->ClearCollisionShapes();
 
-    for (int x = 0; x < m_chunkSize; x++) {
-        for (int y = 0; y < CHUNK_HEIGHT; y++) {
-            for (int z = 0; z < m_chunkSize; z++) {
+    for (int x = 0; x < m_chunkSize_w; x++) {
+        for (int y = 0; y < m_chunkSize_h; y++) {
+            for (int z = 0; z < m_chunkSize_d; z++) {
                 if (!hasBlock(x, y, z)) continue;
+
                 bool hasNeighborXPos = hasBlock(x + 1, y, z);
                 bool hasNeighborXNeg = hasBlock(x - 1, y, z);
                 bool hasNeighborYPos = hasBlock(x, y + 1, z);
@@ -233,8 +242,10 @@ void AChunk::UpdateCollision()
                 bool hasNeighborZPos = hasBlock(x, y, z + 1);
                 bool hasNeighborZNeg = hasBlock(x, y, z - 1);
 
-                if (hasNeighborXPos && hasNeighborXNeg && hasNeighborYPos &&
-                    hasNeighborYNeg && hasNeighborZPos && hasNeighborZNeg) {
+                // если со всех сторон соседи — блок полностью закрыт, пропускаем
+                if (hasNeighborXPos && hasNeighborXNeg &&
+                    hasNeighborYPos && hasNeighborYNeg &&
+                    hasNeighborZPos && hasNeighborZNeg) {
                     continue;
                     }
 
@@ -245,8 +256,10 @@ void AChunk::UpdateCollision()
             }
         }
     }
+
     collisionComp->UpdateBoundingBox();
 }
+
 
 void AChunk::GenerateChunk()
 {
@@ -279,7 +292,7 @@ void AChunk::GenerateChunk()
         }
     }
 
-    m_blocks = m_worldGenerator->GenerateChunkBlocks(m_chunkCoord, m_chunkSize, CHUNK_HEIGHT);
+    m_blocks = m_worldGenerator->GenerateChunkBlocks(m_chunkCoord, m_chunkSize_w, m_chunkSize_h);
     UpdateMesh();
 }
 
@@ -296,7 +309,7 @@ void AChunk::UpdateMesh()
     mesh->Clear();
      auto hasBlock = [&](int x, int y, int z) -> bool {
         if (x < 0 || y < 0 || z < 0) return false;
-        if (x >= m_chunkSize || y >= CHUNK_HEIGHT || z >= m_chunkSize) return false;
+        if (x >= m_chunkSize_w || y >= m_chunkSize_h || z >= m_chunkSize_d) return false;
         return GetBlock(x,y,z) != 0;
     };
 
@@ -321,9 +334,9 @@ void AChunk::UpdateMesh()
         {{1,2,6,5}, { 1, 0, 0}}, // right (+X)
     };
 
-    for (int x = 0; x < m_chunkSize; x++) {
-        for (int y = 0; y < CHUNK_HEIGHT; y++) {
-            for (int z = 0; z < m_chunkSize; z++) {
+    for (int x = 0; x < m_chunkSize_w; x++) {
+        for (int y = 0; y < m_chunkSize_h; y++) {
+            for (int z = 0; z < m_chunkSize_d; z++) {
                 if (!hasBlock(x,y,z)) continue;
 
                 // ИСПРАВЛЕНИЕ: offset теперь указывает на угол блока
@@ -373,18 +386,22 @@ void AChunk::UpdateMesh()
                     mesh->vertices.push_back(cubeVertices[faces[f].idx[0]] + offset);
                     mesh->texCoords.push_back(a);
                     mesh->colors.push_back(glm::vec3(1.0f));
+                    mesh->normals.push_back(glm::vec3(n));
 
                     mesh->vertices.push_back(cubeVertices[faces[f].idx[1]] + offset);
                     mesh->texCoords.push_back(b);
                     mesh->colors.push_back(glm::vec3(1.0f));
+                    mesh->normals.push_back(glm::vec3(n));
 
                     mesh->vertices.push_back(cubeVertices[faces[f].idx[2]] + offset);
                     mesh->texCoords.push_back(c);
                     mesh->colors.push_back(glm::vec3(1.0f));
+                    mesh->normals.push_back(glm::vec3(n));
 
                     mesh->vertices.push_back(cubeVertices[faces[f].idx[3]] + offset);
                     mesh->texCoords.push_back(d);
                     mesh->colors.push_back(glm::vec3(1.0f));
+                    mesh->normals.push_back(glm::vec3(n));
 
                     mesh->indices.push_back(baseIndex + 0);
                     mesh->indices.push_back(baseIndex + 1);

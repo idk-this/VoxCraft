@@ -53,7 +53,9 @@ if (EXISTS "${LIBS_SRC}" AND IS_DIRECTORY "${LIBS_SRC}")
 endif()
 
 target_link_libraries(VoxCraftGame PRIVATE VoxCore
-imgui)
+        imgui
+        nlohmann_json::nlohmann_json
+)
 
 set_target_properties(VoxCraftGame PROPERTIES
         PREFIX ""

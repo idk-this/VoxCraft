@@ -8,15 +8,6 @@
 #include <glm/vec3.hpp>
 #include "AChunk.h"
 
-class VoxCraftGame;
-
-#pragma once
-
-#include <unordered_map>
-#include <glm/vec3.hpp>
-#include "AChunk.h"
-
-class VoxCraftGame;
 class UWorldGenerator;
 
 struct ChunkKey {
@@ -36,6 +27,13 @@ struct ChunkKeyHash {
         );
     }
 };
+struct RaycastResult {
+    bool hit = false;
+    glm::ivec3 blockCoord;
+    glm::ivec3 normal;
+    AChunk* chunk = nullptr;
+    float distance = 0.0f;
+};
 
 class AChunkManager : public AActor{
 public:
@@ -52,11 +50,13 @@ public:
     glm::ivec3 GetLastCenterChunk() const { return m_lastCenterChunk; }
     glm::ivec3 WorldToChunkCoord(const glm::vec3& worldPos) const;
     void Update(float deltaTime, const glm::vec3& playerPos);
+    RaycastResult PerformRaycast(const glm::vec3& start, const glm::vec3& direction, float maxDistance);
     void Cleanup();
 
 private:
-    int m_chunkSize;
-    float m_blockSize;
+    int m_chunkSize_w = 16;
+    int m_chunkSize_h = 128;
+    int m_chunkSize_d = 16;
     std::shared_ptr<UWorldGenerator> m_worldGenerator;
     int m_renderRadius = 3;
 

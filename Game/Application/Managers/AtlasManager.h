@@ -10,35 +10,53 @@
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 
 class UTexture;
+struct BlockFaceUV {
+    glm::vec2 uv0;
+    glm::vec2 uv1;
+};
 
-struct BlockUV {
-    int atlasId;
-    glm::vec4 uvRect;
+struct BlockAtlasInfo {
+    BlockFaceUV faces[6];
+};
+
+struct BlockDefinition {
+    std::string blockId;
+    std::string displayName;
+    std::string texturePath;
 };
 
 class AtlasManager {
 public:
-    AtlasManager(int maxAtlasSize = 4096, int blockWidth = 32, int blockHeight = 32);
+    static AtlasManager& Get();
 
-    BlockUV RegisterBlockAtlas(const std::string& path);
+    bool Initialize();
 
-    std::shared_ptr<UTexture> GetAtlas(int atlasId) const;
+    void RegisterBlock(const std::string& blockId, const std::string& texturePath);
+    uint8_t GetBlockId(const std::string& blockId) const;
+    std::string GetBlockName(uint8_t id) const;
+
+    bool LoadFromFolder(const std::string& folderPath);
+
+    const BlockAtlasInfo& GetBlockAtlasInfo(uint8_t blockId) const;
+    std::vector<std::shared_ptr<UTexture>> GetAtlasTextures() const { return m_atlasTextures; }
+    uint32_t GetAtlasPageCount() const { return m_atlasTextures.size(); }
+    int GetAtlasWidth() const { return m_atlasWidth; }
+    int GetAtlasHeight() const { return m_atlasHeight; }
 
 private:
-    struct Atlas {
-        std::shared_ptr<UTexture> texture;
-        int width, height;
-        int nextX = 0;
-        int nextY = 0;
-        int rowHeight = 0;
-    };
+    AtlasManager() = default;
 
-    std::vector<Atlas> m_atlases;
-    int m_maxAtlasSize;
-    int m_blockWidth;
-    int m_blockHeight;
+    bool BuildCombinedAtlas();
 
-    Atlas CreateEmptyAtlas();
-    void CopySubImage(std::shared_ptr<UTexture>& dst, int dstX, int dstY,
-                      const Engine::FileLoaders::ImageData& src);
+    std::vector<BlockDefinition> m_blockDefinitions;
+    std::unordered_map<std::string, uint8_t> m_blockNameToId;
+    std::unordered_map<uint8_t, std::string> m_idToBlockName;
+
+    std::vector<BlockAtlasInfo> m_blockAtlasInfos;
+    std::vector<std::shared_ptr<UTexture>> m_atlasTextures;
+    int m_atlasWidth = 0;
+    int m_atlasHeight = 0;
+    int m_atlasChannels = 0;
+
+    bool m_initialized = false;
 };
