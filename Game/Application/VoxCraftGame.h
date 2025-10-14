@@ -32,7 +32,16 @@ class VoxCraftGame : public Engine::Application {
         void Init() override;
         void Update(float deltaTime) override;
         void Run() override;
+    void DrawBlockBounds();
+    struct RaycastResult {
+        bool hit = false;
+        glm::ivec3 blockCoord;
+        glm::ivec3 normal;
+        AChunk* chunk = nullptr;
+        float distance = 0.0f;
+    };
 
+    RaycastResult PerformRaycast(const glm::vec3& start, const glm::vec3& direction, float maxDistance);
     VoxPak voxCraftPak;
     std::shared_ptr<DebugOverlay> m_debugOverlay;
     FObjectID m_chunkManager_id;

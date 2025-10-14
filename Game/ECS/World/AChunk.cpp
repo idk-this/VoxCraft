@@ -300,15 +300,16 @@ void AChunk::UpdateMesh()
         return GetBlock(x,y,z) != 0;
     };
 
+    // ИСПРАВЛЕНИЕ: Вершины куба от угла, а не от центра
     const glm::vec3 cubeVertices[8] = {
-        {-0.5f, -0.5f, -0.5f},
-        { 0.5f, -0.5f, -0.5f},
-        { 0.5f,  0.5f, -0.5f},
-        {-0.5f,  0.5f, -0.5f},
-        {-0.5f, -0.5f,  0.5f},
-        { 0.5f, -0.5f,  0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        {-0.5f,  0.5f,  0.5f},
+        {0.0f, 0.0f, 0.0f},  // 0: левый-нижний-задний угол
+        {1.0f, 0.0f, 0.0f},  // 1: правый-нижний-задний угол
+        {1.0f, 1.0f, 0.0f},  // 2: правый-верхний-задний угол
+        {0.0f, 1.0f, 0.0f},  // 3: левый-верхний-задний угол
+        {0.0f, 0.0f, 1.0f},  // 4: левый-нижний-передний угол
+        {1.0f, 0.0f, 1.0f},  // 5: правый-нижний-передний угол
+        {1.0f, 1.0f, 1.0f},  // 6: правый-верхний-передний угол
+        {0.0f, 1.0f, 1.0f}   // 7: левый-верхний-передний угол
     };
 
     const Face faces[6] = {
@@ -325,6 +326,7 @@ void AChunk::UpdateMesh()
             for (int z = 0; z < m_chunkSize; z++) {
                 if (!hasBlock(x,y,z)) continue;
 
+                // ИСПРАВЛЕНИЕ: offset теперь указывает на угол блока
                 glm::vec3 offset(x * blockSize, y * blockSize, z * blockSize);
                 uint8_t blockId = GetBlock(x,y,z);
                 if (blockId == 0) continue;
@@ -367,10 +369,22 @@ void AChunk::UpdateMesh()
 
                     uint32_t baseIndex = static_cast<uint32_t>(mesh->vertices.size());
 
-                    mesh->vertices.push_back(cubeVertices[faces[f].idx[0]] * blockSize + offset); mesh->texCoords.push_back(a); mesh->colors.push_back(glm::vec3(1.0f));
-                    mesh->vertices.push_back(cubeVertices[faces[f].idx[1]] * blockSize + offset); mesh->texCoords.push_back(b); mesh->colors.push_back(glm::vec3(1.0f));
-                    mesh->vertices.push_back(cubeVertices[faces[f].idx[2]] * blockSize + offset); mesh->texCoords.push_back(c); mesh->colors.push_back(glm::vec3(1.0f));
-                    mesh->vertices.push_back(cubeVertices[faces[f].idx[3]] * blockSize + offset); mesh->texCoords.push_back(d); mesh->colors.push_back(glm::vec3(1.0f));
+                    // ИСПРАВЛЕНИЕ: Убираем умножение на blockSize, т.к. вершины уже в правильном масштабе
+                    mesh->vertices.push_back(cubeVertices[faces[f].idx[0]] + offset);
+                    mesh->texCoords.push_back(a);
+                    mesh->colors.push_back(glm::vec3(1.0f));
+
+                    mesh->vertices.push_back(cubeVertices[faces[f].idx[1]] + offset);
+                    mesh->texCoords.push_back(b);
+                    mesh->colors.push_back(glm::vec3(1.0f));
+
+                    mesh->vertices.push_back(cubeVertices[faces[f].idx[2]] + offset);
+                    mesh->texCoords.push_back(c);
+                    mesh->colors.push_back(glm::vec3(1.0f));
+
+                    mesh->vertices.push_back(cubeVertices[faces[f].idx[3]] + offset);
+                    mesh->texCoords.push_back(d);
+                    mesh->colors.push_back(glm::vec3(1.0f));
 
                     mesh->indices.push_back(baseIndex + 0);
                     mesh->indices.push_back(baseIndex + 1);

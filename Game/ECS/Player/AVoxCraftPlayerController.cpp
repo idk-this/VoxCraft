@@ -19,7 +19,7 @@ void AVoxCraftPlayerController::Update(float deltaTime)
     if (!window->IsRelativeMouseMode()) return;
 
     auto* transform = m_pawn->GetComponent<UTransformComponent>();
-
+    auto* physic = m_pawn->GetComponent<UPhysicComponent>();
     if (!transform) return;
 
     float moveSpeed = (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_LEFT_SHIFT) ? Speed * 2.5f : Speed);
@@ -50,7 +50,10 @@ void AVoxCraftPlayerController::Update(float deltaTime)
     {
         glm::vec3 force = camera->GetUpVector();
         force *= 20;
-        m_pawn->GetComponent<UPhysicComponent>()->AddForce(force);
+        if (physic)
+        {
+            m_pawn->GetComponent<UPhysicComponent>()->AddForce(force);
+        }
     }
     if (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_W))
         moveDirection += camera->GetForwardVector();
@@ -68,6 +71,10 @@ void AVoxCraftPlayerController::Update(float deltaTime)
     {
         moveDirection -= camera->GetUpVector();
     }
-    transform->Move(moveDirection * moveSpeed * deltaTime);
+    if (physic)
+    {
+        physic->SetVelocity(moveDirection * moveSpeed * deltaTime);
+    }else
+        transform->Move(moveDirection * moveSpeed * deltaTime);
 
 }

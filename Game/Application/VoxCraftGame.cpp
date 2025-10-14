@@ -18,9 +18,11 @@
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
+#include "Core/Physics/Components/UCollisionComponent.h"
 #include "Core/Physics/Components/UPhysicComponent.h"
 #include "Core/UI/ConsoleUI.h"
 #include "Core/UI/Core/XMLParser.h"
+#include "Core/Utils/CameraUtils.h"
 #include "Core/Utils/FileSystem.h"
 #include "Core/Utils/FileLoaders/ImageLoader.h"
 #include "ECS/Player/AVoxCraftPlayer.h"
@@ -126,68 +128,78 @@ std::optional<glm::ivec3> GetBlockCoordsFromHit(AChunk* chunk, const glm::vec3& 
 
     return std::nullopt;
 }
+// Исправленная версия TraceBlock:
 std::optional<glm::ivec3> TraceBlock(AChunk* chunk,
                                      const glm::vec3& start,
                                      const glm::vec3& dir,
                                      float maxDist,
                                      float blockSize = 1.0f)
 {
+    if (!chunk) return std::nullopt;
+
     auto transform = chunk->GetComponent<UTransformComponent>();
     if (!transform) return std::nullopt;
 
     glm::vec3 localStart = start - transform->position;
 
-    int x = static_cast<int>(std::floor(localStart.x / blockSize));
-    int y = static_cast<int>(std::floor(localStart.y / blockSize));
-    int z = static_cast<int>(std::floor(localStart.z / blockSize));
+    // Нормализуем направление
+    glm::vec3 rayDir = glm::normalize(dir);
+
+    // Начальная позиция в блоках
+    glm::vec3 rayPos = localStart / blockSize;
+
+    // Шаг и направление
+    glm::ivec3 step(
+        rayDir.x > 0 ? 1 : -1,
+        rayDir.y > 0 ? 1 : -1,
+        rayDir.z > 0 ? 1 : -1
+    );
 
     glm::vec3 deltaDist = glm::abs(glm::vec3(
-        blockSize / dir.x,
-        blockSize / dir.y,
-        blockSize / dir.z
+        rayDir.x == 0 ? 1e30f : 1.0f / std::abs(rayDir.x),
+        rayDir.y == 0 ? 1e30f : 1.0f / std::abs(rayDir.y),
+        rayDir.z == 0 ? 1e30f : 1.0f / std::abs(rayDir.z)
     ));
 
-    glm::ivec3 step(
-        dir.x > 0 ? 1 : -1,
-        dir.y > 0 ? 1 : -1,
-        dir.z > 0 ? 1 : -1
+    glm::ivec3 voxel(
+        static_cast<int>(std::floor(rayPos.x)),
+        static_cast<int>(std::floor(rayPos.y)),
+        static_cast<int>(std::floor(rayPos.z))
     );
 
     glm::vec3 sideDist;
-    auto nextBoundary = [&](float pos, float d, int step) {
-        return step > 0 ? (std::floor(pos / blockSize) + 1) * blockSize - pos
-                        : pos - std::floor(pos / blockSize) * blockSize;
-    };
-
-    sideDist.x = nextBoundary(localStart.x, dir.x, step.x) / std::abs(dir.x);
-    sideDist.y = nextBoundary(localStart.y, dir.y, step.y) / std::abs(dir.y);
-    sideDist.z = nextBoundary(localStart.z, dir.z, step.z) / std::abs(dir.z);
+    sideDist.x = (rayDir.x > 0 ? (voxel.x + 1 - rayPos.x) : (rayPos.x - voxel.x)) * deltaDist.x;
+    sideDist.y = (rayDir.y > 0 ? (voxel.y + 1 - rayPos.y) : (rayPos.y - voxel.y)) * deltaDist.y;
+    sideDist.z = (rayDir.z > 0 ? (voxel.z + 1 - rayPos.z) : (rayPos.z - voxel.z)) * deltaDist.z;
 
     float traveled = 0.0f;
+    int chunkSize = 16; // Должно соответствовать m_chunkSize из AChunk
+    int chunkHeight = 32; // Должно соответствовать CHUNK_HEIGHT из AChunk
 
     while (traveled < maxDist) {
-        if (x >= 0 && x < 16 &&
-            y >= 0 && y < 16 &&
-            z >= 0 && z < 16)
+        // Проверяем границы с правильной высотой
+        if (voxel.x >= 0 && voxel.x < chunkSize &&
+            voxel.y >= 0 && voxel.y < chunkHeight &&
+            voxel.z >= 0 && voxel.z < chunkSize)
         {
-            if (chunk->GetBlock(x, y, z) != 0) {
-                return glm::ivec3(x, y, z);
+            if (chunk->GetBlock(voxel.x, voxel.y, voxel.z) != 0) {
+                return glm::ivec3(voxel.x, voxel.y, voxel.z);
             }
-        } else {
-            break;
         }
+
+        // DDA шаг
         if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
-            sideDist.x += deltaDist.x;
-            x += step.x;
             traveled = sideDist.x;
+            sideDist.x += deltaDist.x;
+            voxel.x += step.x;
         } else if (sideDist.y < sideDist.z) {
-            sideDist.y += deltaDist.y;
-            y += step.y;
             traveled = sideDist.y;
+            sideDist.y += deltaDist.y;
+            voxel.y += step.y;
         } else {
-            sideDist.z += deltaDist.z;
-            z += step.z;
             traveled = sideDist.z;
+            sideDist.z += deltaDist.z;
+            voxel.z += step.z;
         }
     }
 
@@ -319,6 +331,163 @@ std::optional<BlockHit> TraceBlockDDA(AChunk* chunk,
 
     return std::nullopt;
 }
+void VoxCraftGame::DrawBlockBounds() {
+    auto* player = static_cast<AVoxCraftPlayer*>(m_localPlayer->GetController()->GetPawn().get());
+    UCameraComponent* camera = player->GetComponent<UCameraComponent>();
+
+    glm::vec3 rayStart = camera->GetWorldPosition();
+    glm::vec3 rayDir = camera->GetForwardVector();
+
+    // Выполняем raycast
+    RaycastResult hit = PerformRaycast(rayStart, rayDir, 50.0f);
+
+
+    if (hit.hit && hit.chunk) {
+        float blockSize = 1.0f;
+        glm::vec3 chunkPos = hit.chunk->GetComponent<UTransformComponent>()->position;
+        glm::vec3 min = chunkPos + glm::vec3(hit.blockCoord) * blockSize;
+        glm::vec3 max = min + glm::vec3(blockSize);
+        glm::vec3 vertices[8] = {
+            {min.x, min.y, min.z}, {max.x, min.y, min.z},
+            {max.x, max.y, min.z}, {min.x, max.y, min.z},
+            {min.x, min.y, max.z}, {max.x, min.y, max.z},
+            {max.x, max.y, max.z}, {min.x, max.y, max.z}
+        };
+        int edges[12][2] = {
+            {0,1},{1,2},{2,3},{3,0},
+            {4,5},{5,6},{6,7},{7,4},
+            {0,4},{1,5},{2,6},{3,7}
+        };
+        if (hit.hit && hit.chunk) {
+            float blockSize = 1.0f;
+            glm::vec3 chunkPos = hit.chunk->GetComponent<UTransformComponent>()->position;
+            glm::vec3 blockWorldPos = chunkPos + glm::vec3(hit.blockCoord) * blockSize + glm::vec3(blockSize/2); // центр блока
+
+            glm::vec2 screenPos;
+            if (CameraUtils::WorldToScreen(camera->GetViewMatrix(), camera->GetProjectionMatrix(), blockWorldPos, screenPos)) {
+                ImGui::GetBackgroundDrawList()->AddCircleFilled(
+                    ImVec2(screenPos.x, screenPos.y),
+                    5.0f,
+                    IM_COL32(0, 255, 0, 255)
+                );
+            }
+        }
+        for (int i = 0; i < 12; i++) {
+            glm::vec2 p1, p2;
+            if (CameraUtils::WorldToScreen(camera->GetViewMatrix(), camera->GetProjectionMatrix(), vertices[edges[i][0]], p1) &&
+                CameraUtils::WorldToScreen(camera->GetViewMatrix(), camera->GetProjectionMatrix(), vertices[edges[i][1]], p2)) {
+
+                ImGui::GetBackgroundDrawList()->AddLine(
+                    ImVec2(p1.x, p1.y),
+                    ImVec2(p2.x, p2.y),
+                    IM_COL32(0, 255, 0, 255),
+                    2.0f
+                );
+            }
+        }
+    }
+}
+VoxCraftGame::RaycastResult VoxCraftGame::PerformRaycast(const glm::vec3& start, const glm::vec3& direction, float maxDistance) {
+    RaycastResult result;
+
+    // Нормализуем направление
+    glm::vec3 rayDir = glm::normalize(direction);
+    glm::vec3 rayPos = start;
+
+    // Параметры для DDA алгоритма
+    glm::ivec3 voxel(
+        static_cast<int>(std::floor(rayPos.x)),
+        static_cast<int>(std::floor(rayPos.y)),
+        static_cast<int>(std::floor(rayPos.z))
+    );
+
+    glm::vec3 rayStep(
+        (rayDir.x > 0) ? 1 : -1,
+        (rayDir.y > 0) ? 1 : -1,
+        (rayDir.z > 0) ? 1 : -1
+    );
+
+    // Вектор до следующей границы вокселя
+    glm::vec3 nextBoundary = glm::vec3(
+        (rayStep.x > 0) ? (voxel.x + 1) : voxel.x,
+        (rayStep.y > 0) ? (voxel.y + 1) : voxel.y,
+        (rayStep.z > 0) ? (voxel.z + 1) : voxel.z
+    );
+
+    // Расстояние до следующей границы
+    glm::vec3 tMax = glm::vec3(
+        (rayDir.x != 0) ? (nextBoundary.x - rayPos.x) / rayDir.x : std::numeric_limits<float>::max(),
+        (rayDir.y != 0) ? (nextBoundary.y - rayPos.y) / rayDir.y : std::numeric_limits<float>::max(),
+        (rayDir.z != 0) ? (nextBoundary.z - rayPos.z) / rayDir.z : std::numeric_limits<float>::max()
+    );
+
+    // Изменение t при переходе между вокселями
+    glm::vec3 tDelta = glm::vec3(
+        (rayDir.x != 0) ? rayStep.x / rayDir.x : std::numeric_limits<float>::max(),
+        (rayDir.y != 0) ? rayStep.y / rayDir.y : std::numeric_limits<float>::max(),
+        (rayDir.z != 0) ? rayStep.z / rayDir.z : std::numeric_limits<float>::max()
+    );
+
+    glm::ivec3 lastVoxel = voxel;
+    float traveled = 0.0f;
+
+    while (traveled < maxDistance) {
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            traveled = tMax.x;
+            tMax.x += tDelta.x;
+            voxel.x += static_cast<int>(rayStep.x);
+        } else if (tMax.y < tMax.z) {
+            traveled = tMax.y;
+            tMax.y += tDelta.y;
+            voxel.y += static_cast<int>(rayStep.y);
+        } else {
+            traveled = tMax.z;
+            tMax.z += tDelta.z;
+            voxel.z += static_cast<int>(rayStep.z);
+        }
+
+        if (traveled > maxDistance) break;
+
+        rayPos = start + rayDir * traveled;
+        glm::ivec3 chunkCoord = m_world->GetActor<AChunkManager>(m_chunkManager_id)->WorldToChunkCoord(glm::vec3(voxel.x, voxel.y, voxel.z));
+
+        // Получаем чанк
+        auto chunk = m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetChunk(chunkCoord);
+        if (!chunk) continue;
+
+        // Получаем координаты блока в чанке
+        glm::ivec3 blockCoord = m_world->GetActor<AChunkManager>(m_chunkManager_id)->WorldToBlockCoord(glm::vec3(voxel.x, voxel.y, voxel.z));
+
+        // Проверяем границы блока
+        if (blockCoord.x >= 0 && blockCoord.x < 16 &&
+            blockCoord.y >= 0 && blockCoord.y < 32 &&
+            blockCoord.z >= 0 && blockCoord.z < 16) {
+
+            // Проверяем, есть ли блок в этой позиции
+            if (chunk->GetBlock(blockCoord.x, blockCoord.y, blockCoord.z) != 0) {
+                result.hit = true;
+                result.blockCoord = blockCoord;
+                result.chunk = chunk.get();
+                result.distance = traveled;
+
+                // Определяем нормаль (направление попадания)
+                if (voxel.x != lastVoxel.x) {
+                    result.normal = glm::ivec3((voxel.x > lastVoxel.x) ? -1 : 1, 0, 0);
+                } else if (voxel.y != lastVoxel.y) {
+                    result.normal = glm::ivec3(0, (voxel.y > lastVoxel.y) ? -1 : 1, 0);
+                } else {
+                    result.normal = glm::ivec3(0, 0, (voxel.z > lastVoxel.z) ? -1 : 1);
+                }
+
+                return result;
+            }
+        }
+
+        lastVoxel = voxel;
+    }
+
+    return result;
+}
 
 ConsoleUI console;
 void VoxCraftGame::Update(float deltaTime)
@@ -380,50 +549,88 @@ void VoxCraftGame::Update(float deltaTime)
         window->ToggleRelativeMouseMode();
     }
     lastRightButton = rightButton;
-
-
-    if (window->GetInputComponent()->GetMouseState().buttons[1])
+    if (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_LEFT_ALT))
     {
         auto* player = static_cast<AVoxCraftPlayer*>(m_localPlayer->GetController()->GetPawn().get());
         UCameraComponent* camera = player->GetComponent<UCameraComponent>();
-        auto hit = m_world->LineTrace(camera->GetWorldPosition(), camera->GetForwardVector(), 500.0f, m_localPlayer->GetController()->GetPawn().get() );
 
-        if (hit.bHit) {
-            if (auto* chunk = dynamic_cast<AChunk*>(hit.HitActor.get())) {
-               auto blockCoords = TraceBlockDDA(chunk, camera->GetWorldPosition(), glm::normalize(camera->GetForwardVector()), 500.0f);
-                if (blockCoords) {
-                    LOG_INFO("HIT", "Block: {} {} {} ({})", blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z, chunk->GetBlock(blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z));
-                    chunk->SetBlock(blockCoords->coords.x, blockCoords->coords.y, blockCoords->coords.z, 0);
+        glm::vec3 rayStart = camera->GetWorldPosition();
+        glm::vec3 rayDir = camera->GetForwardVector();
+
+        RaycastResult hit = PerformRaycast(rayStart, rayDir, 50.0f);
+
+        if (hit.hit && hit.chunk) {
+            // Вычисляем позицию для нового блока (текущий блок + нормаль)
+            glm::ivec3 newBlockPos = hit.blockCoord + hit.normal;
+
+            // Проверяем, что новая позиция в пределах чанка
+            if (newBlockPos.x >= 0 && newBlockPos.x < 16 &&
+                newBlockPos.y >= 0 && newBlockPos.y < 32 &&
+                newBlockPos.z >= 0 && newBlockPos.z < 16) {
+
+                // Проверяем, что на этой позиции нет блока
+                if (hit.chunk->GetBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) == 0) {
+                    // Ставим новый блок (например, камень с ID = 1)
+                    hit.chunk->SetBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, 1);
+                    LOG_INFO("PLACE", "Placed block at: {} {} {} (Chunk: {},{},{})",
+                            newBlockPos.x, newBlockPos.y, newBlockPos.z,
+                            hit.chunk->GetChunkCoord().x, hit.chunk->GetChunkCoord().y, hit.chunk->GetChunkCoord().z);
+                }
+            } else {
+                // Если блок выходит за пределы текущего чанка, нужно найти соседний чанк
+                glm::ivec3 chunkCoord = hit.chunk->GetChunkCoord();
+                glm::ivec3 worldVoxel = chunkCoord * 16 + newBlockPos;
+                glm::ivec3 newChunkCoord = m_world->GetActor<AChunkManager>(m_chunkManager_id)->WorldToChunkCoord(glm::vec3(worldVoxel));
+                glm::ivec3 newBlockCoord = m_world->GetActor<AChunkManager>(m_chunkManager_id)->WorldToBlockCoord(glm::vec3(worldVoxel));
+
+                auto newChunk = m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetChunk(newChunkCoord);
+                if (newChunk) {
+                    if (newChunk->GetBlock(newBlockCoord.x, newBlockCoord.y, newBlockCoord.z) == 0) {
+                        newChunk->SetBlock(newBlockCoord.x, newBlockCoord.y, newBlockCoord.z, 1);
+                        LOG_INFO("PLACE", "Placed block in neighbor chunk at: {} {} {} (Chunk: {},{},{})",
+                                newBlockCoord.x, newBlockCoord.y, newBlockCoord.z,
+                                newChunkCoord.x, newChunkCoord.y, newChunkCoord.z);
+                    }
                 }
             }
+        }
+    }
+
+    if (window->GetInputComponent()->GetMouseState().buttons[1]) {
+        auto* player = static_cast<AVoxCraftPlayer*>(m_localPlayer->GetController()->GetPawn().get());
+        UCameraComponent* camera = player->GetComponent<UCameraComponent>();
+
+        glm::vec3 rayStart = camera->GetWorldPosition();
+        glm::vec3 rayDir = camera->GetForwardVector();
+
+        RaycastResult hit = PerformRaycast(rayStart, rayDir, 50.0f);
+
+        if (hit.hit && hit.chunk) {
+            LOG_INFO("HIT", "Block: {} {} {} (Type: {})",
+                    hit.blockCoord.x, hit.blockCoord.y, hit.blockCoord.z,
+                    hit.chunk->GetBlock(hit.blockCoord.x, hit.blockCoord.y, hit.blockCoord.z));
+
+            hit.chunk->SetBlock(hit.blockCoord.x, hit.blockCoord.y, hit.blockCoord.z, 0);
         }
     }
     {
         auto* playerPawn = m_localPlayer->GetController()->GetPawn().get();
         if (playerPawn) {
+            glm::vec2 screenPos;
+            glm::vec3 cameraPos = playerPawn->GetComponent<UTransformComponent>()->position; // позиция камеры
 
-            glm::vec3 playerPos = playerPawn->GetComponent<UTransformComponent>()->position;
             m_world->GetActor<AChunkManager>(m_chunkManager_id)->Update(deltaTime, playerPos);
+            DrawBlockBounds(
+                );
+            auto* camera = playerPawn->GetComponent<UCameraComponent>();
+
             if (playerPawn->HasComponent(typeid(UPhysicComponent)))
             {
                 playerPos.y -= 1;
                 playerPawn->GetComponent<UPhysicComponent>()->SetGrounded(m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetBlock(playerPos) != 0);
+                auto* chunk = m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetChunk(m_world->GetActor<AChunkManager>(m_chunkManager_id)->GetLastCenterChunk()).get();
 
-            }
-        }
-    }
-    if (window->GetInputComponent()->IsKeyDown(KeyCode::KEY_Q)) {
-        if (!Engine::GetCurrentContext().GetWorld()->GetActors().empty()) {
-            int idx = std::rand() % Engine::GetCurrentContext().GetWorld()->GetActors().size();
-            AActor* actor = Engine::GetCurrentContext().GetWorld()->GetActors()[idx].get();
 
-            if (auto transform = actor->GetComponent<UTransformComponent>()) {
-                glm::vec3 offset(
-                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 2.0f,
-                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 2.0f,
-                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 2.0f
-                );
-                transform->SetPosition(transform->position + offset);
             }
         }
     }

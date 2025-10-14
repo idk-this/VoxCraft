@@ -18,6 +18,7 @@ public:
     void UpdateMesh();
     void SetBlock(int x, int y, int z, uint8_t blockId);
     uint8_t GetBlock(int x, int y, int z) const;
+    glm::ivec3 GetChunkCoord() const { return m_chunkCoord; }
     FAABB GetBoundingBox() override {
         auto transform = GetComponent<UTransformComponent>();
         if (!transform) {
@@ -37,5 +38,5 @@ private:
     UWorldGenerator* m_worldGenerator;
     glm::ivec3 m_chunkCoord;
     uint8_t m_chunkSize = 16;
-    std::vector<uint8_t> m_blocks; // храним все блоки чанка
+    std::vector<uint8_t> m_blocks;
 };

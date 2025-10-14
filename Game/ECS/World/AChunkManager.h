@@ -45,12 +45,12 @@ public:
     void LoadChunk(const glm::ivec3& chunkCoord);
     void UnloadChunk(const glm::ivec3& chunkCoord);
     void LoadChunksAround(const glm::vec3& centerPos, int horizontalRadius, int verticalRadius);
-
+    glm::ivec3 WorldToBlockCoord(const glm::vec3& worldPos) const;
     std::shared_ptr<AChunk> GetChunk(const glm::ivec3& chunkCoord) const;
     uint8_t GetBlock(const glm::vec3& worldPos) const;
     void SetBlock(const glm::vec3& worldPos, uint8_t blockId);
     glm::ivec3 GetLastCenterChunk() const { return m_lastCenterChunk; }
-
+    glm::ivec3 WorldToChunkCoord(const glm::vec3& worldPos) const;
     void Update(float deltaTime, const glm::vec3& playerPos);
     void Cleanup();
 
@@ -63,7 +63,6 @@ private:
     std::unordered_map<ChunkKey, std::shared_ptr<AChunk>, ChunkKeyHash> m_loadedChunks;
     glm::ivec3 m_lastCenterChunk;
 
-    glm::ivec3 WorldToChunkCoord(const glm::vec3& worldPos) const;
+
     glm::vec3 ChunkToWorldCoord(const glm::ivec3& chunkCoord) const;
-    glm::ivec3 WorldToBlockCoord(const glm::vec3& worldPos) const;
 };
