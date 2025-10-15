@@ -1,6 +1,6 @@
 # VoxCraft
 
-**VoxCraft** is a work-in-progress 3D voxel-based game built using the **VoxCore Game Engine**. It is a simple demonstration of the engine's capabilities and currently serves as a minimal Minecraft-like clone.
+**VoxCraft** is a work-in-progress 3D voxel-based game built using the **[VoxCore Game Engine](https://github.com/idk-this/VoxCore)**. It is a simple demonstration of the engine's capabilities and currently serves as a minimal Minecraft-like clone.
 
 > ⚠️ This project is a WIP (Work in Progress) and may contain incomplete features.
 
@@ -19,7 +19,7 @@ Currently, there is no detailed build or installation guide. Instructions for bu
 ## Status
 
 - **Development stage:** WIP
-- **Engine:** VoxCore (in development)
+- **Engine:** [VoxCore](https://github.com/idk-this/VoxCore) (in development)
 - **Game mechanics:** Minimal Minecraft-like features
 
 ## License
