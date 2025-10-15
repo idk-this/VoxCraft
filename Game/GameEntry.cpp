@@ -71,7 +71,7 @@ __declspec(dllexport)
 #endif
 int GameEntry() {
 
-    /*Pack(fs::path("Content/VoxCraftRes"), "Content/Paks/VoxCraftRes.voxpak");
+    /*Pack(fs::path("Content/VoxCraftRes"), "Content/Paks/VoxCraftRes.vxpk");
     //std::cout << "Platform: " << PLATFORM << "\n";
     std::cout << "Working Directory: " << Engine::FileSystem::GetWorkingDirectory() << "\n";
     VoxPak pak;

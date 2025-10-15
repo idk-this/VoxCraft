@@ -31,10 +31,6 @@ class VoxCraftGame : public Engine::Application {
         void Run() override;
 
     void DrawBlockBounds();
-
-
-
-    VoxPak voxCraftPak;
     std::shared_ptr<DebugOverlay> m_debugOverlay;
     FObjectID m_chunkManager_id;
     float m_blockSize = 1.0f;

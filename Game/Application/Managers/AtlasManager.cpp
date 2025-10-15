@@ -51,12 +51,12 @@ std::string AtlasManager::GetBlockName(uint8_t id) const {
 bool AtlasManager::LoadFromFolder(const std::string& folderPath) {
 
     try {
-        for (const auto& filePath : Engine::GetCurrentContext<VoxCraftGame>().voxCraftPak.ListFiles(folderPath)) {
+        for (const auto& filePath :  Engine::GetCurrentContext().GetPak("VoxCraftRes")->ListFiles(folderPath)) {
             std::filesystem::path entry(filePath);
             if (entry.extension() == ".json") {
                 nlohmann::json json;
                 try {
-                    json = nlohmann::json::parse(Engine::GetCurrentContext<VoxCraftGame>().voxCraftPak.ReadFileWithOverrideString(filePath));
+                    json = nlohmann::json::parse( Engine::GetCurrentContext().GetPak("VoxCraftRes")->ReadFileWithOverrideString(filePath));
                 } catch (const std::exception& e) {
                     LOG_WARN("AtlasManager", "Failed to parse JSON {}: {}", entry.string(), e.what());
                     continue;
@@ -105,7 +105,7 @@ bool AtlasManager::BuildCombinedAtlas() {
     images.reserve(m_blockDefinitions.size());
 
     for (const auto& blockDef : m_blockDefinitions) {
-        std::vector<uint8_t> fileData = static_cast<VoxCraftGame&>(Engine::GetCurrentContext()).voxCraftPak.ReadFileWithOverride(blockDef.texturePath);
+        std::vector<uint8_t> fileData =  Engine::GetCurrentContext().GetPak("VoxCraftRes")->ReadFileWithOverride(blockDef.texturePath);
         if (fileData.empty()) {
             LOG_WARN("AtlasManager", "Failed to read atlas file {}", blockDef.texturePath);
             return false;

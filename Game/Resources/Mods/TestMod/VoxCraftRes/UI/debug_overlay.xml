@@ -10,10 +10,10 @@
     </ColumnSystem>
 
     <ColumnSystem Name="BottomLeft" Columns="1" ColumnSpan="12" VerticalAlign="Bottom">
-        <TextBlock Name="Time" Width="200" ColumnSpan="1" Text="12:34:56"/>
+        <TextBlock Name="Time" Width="250" ColumnSpan="1" Text="{Binding GameBuildDate}"/>
     </ColumnSystem>
 
     <ColumnSystem Name="BottomRight" Columns="1" ColumnSpan="12"  VerticalAlign="Bottom">
-        <TextBlock Name="Build" Width="200" ColumnSpan="1" Align="Right" Text="Build: Debug"/>
+        <TextBlock Name="Build" Width="250" ColumnSpan="1" Align="Right" Text="{Binding GameBuildType}"/>
     </ColumnSystem>
 </HUD>

@@ -18,6 +18,7 @@
 #include "Core/ECS/Components/UTransformComponent.h"
 #include "Core/ECS/Player/ULocalPlayer.h"
 #include "Core/Log/Logger.h"
+#include "Core/GameInfo.h"
 #include "Core/Physics/Components/UCollisionComponent.h"
 #include "Core/Physics/Components/UPhysicComponent.h"
 #include "Core/UI/ConsoleUI.h"
@@ -59,13 +60,14 @@ void VoxCraftGame::Init()
     LOG_INFO("VoxCraft", "VoxCraft version: {} (Build number: {})", VOXCRAFT_VERSION_STR, VOXCRAFT_BUILD_NUMBER);
     LOG_INFO("VoxCraft", "VoxCraft build date: {}", VOXCRAFT_BUILD_DATE);
     LOG_INFO("VoxCraft", "VoxCraft build type: {}", VOXCRAFT_BUILD_TYPE);
-    m_world = std::make_shared<UWorld>();
-    bool mainPakLoaded = voxCraftPak.Open(Engine::FileSystem::GetWorkingDirectory() + "Content/Paks/VoxCraftRes.voxpak");
-    if (!mainPakLoaded)
+    if (!RegisterPak("VoxCraftRes"))
     {
-        LOG_FATAL("Application", "Failed to load VoxCraftRes.voxpak");
+        LOG_FATAL("VoxCraft", "Main resource pak NOT FOUND!!!");
         return;
     }
+
+    m_world = std::make_shared<UWorld>();
+
     auto& atlasManager = AtlasManager::Get();
     atlasManager.Initialize();
     atlasManager.LoadFromFolder("Textures/Blocks");

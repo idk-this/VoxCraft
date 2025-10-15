@@ -28,7 +28,6 @@ static std::vector<std::string> g_blockAtlases = {
     "Textures/Blocks/Stone/Block.png"
 };
 static bool BuildCombinedAtlas(
-    VoxCraftGame* gameCtx,
     std::vector<uint8_t>& outPixels,
     int& outWidth,
     int& outHeight,
@@ -46,7 +45,7 @@ static bool BuildCombinedAtlas(
     std::vector<Img> images;
     images.reserve(g_blockAtlases.size());
     for (auto &path : g_blockAtlases) {
-        std::vector<uint8_t> fileData = gameCtx->voxCraftPak.ReadFileWithOverride(path);
+        std::vector<uint8_t> fileData = Engine::GetCurrentContext().GetPak("VoxCraftRes")->ReadFileWithOverride(path);
         if (fileData.empty()) {
             LOG_WARN("AChunk", "Failed to read atlas file {}", path.c_str());
             return false;
@@ -167,7 +166,7 @@ AChunk::AChunk(glm::ivec3 chunkCoord, int chunkWidth, int chunkHeight, int chunk
     int bigW=0, bigH=0, bigC=0;
     std::vector<BlockAtlasInfo> atlasInfos;
 
-    if (BuildCombinedAtlas(gameCtx, bigPixels, bigW, bigH, bigC, atlasInfos)) {
+    if (BuildCombinedAtlas(bigPixels, bigW, bigH, bigC, atlasInfos)) {
         if (!meshComp->Texture) meshComp->Texture = nullptr;
         std::shared_ptr<UTexture> atlasTex = std::make_shared<UTexture>(
             "CombinedAtlas",
@@ -269,7 +268,7 @@ void AChunk::GenerateChunk()
         std::vector<uint8_t> bigPixels;
         int bigW=0, bigH=0, bigC=0;
         std::vector<BlockAtlasInfo> atlasInfos;
-        if (BuildCombinedAtlas(gameCtx, bigPixels, bigW, bigH, bigC, atlasInfos)) {
+        if (BuildCombinedAtlas(bigPixels, bigW, bigH, bigC, atlasInfos)) {
             s_blockAtlasInfos = std::move(atlasInfos);
             s_bigAtlasWidth = bigW;
             s_bigAtlasHeight = bigH;
