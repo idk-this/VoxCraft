@@ -50,10 +50,16 @@ VoxCraftGame::VoxCraftGame()
 
 VoxCraftGame::~VoxCraftGame() = default;
 
-
+ConsoleUI console;
 
 void VoxCraftGame::Init()
 {
+    Application::Init();
+    console.InitializeLoggerHook(m_logSystem.get());
+    LOG_INFO("VoxCraft", "VoxCraft version: {} (Build number: {})", VOXCRAFT_VERSION_STR, VOXCRAFT_BUILD_NUMBER);
+    LOG_INFO("VoxCraft", "VoxCraft build date: {}", VOXCRAFT_BUILD_DATE);
+    LOG_INFO("VoxCraft", "VoxCraft build type: {}", VOXCRAFT_BUILD_TYPE);
+    m_world = std::make_shared<UWorld>();
     bool mainPakLoaded = voxCraftPak.Open(Engine::FileSystem::GetWorkingDirectory() + "Content/Paks/VoxCraftRes.voxpak");
     if (!mainPakLoaded)
     {
@@ -63,7 +69,8 @@ void VoxCraftGame::Init()
     auto& atlasManager = AtlasManager::Get();
     atlasManager.Initialize();
     atlasManager.LoadFromFolder("Textures/Blocks");
-    Application::Init();
+
+
     m_debugOverlay = std::make_shared<DebugOverlay>();
     m_debugOverlay->Init();
     m_localPlayer = std::make_shared<ULocalPlayer>();
@@ -134,7 +141,7 @@ void VoxCraftGame::DrawBlockBounds() {
 }
 
 
-ConsoleUI console;
+
 void VoxCraftGame::Update(float deltaTime)
 {
     console.Draw();
@@ -279,8 +286,9 @@ void VoxCraftGame::Update(float deltaTime)
 void VoxCraftGame::Run()
 {
     Application::Run();
-    m_logSystem->add_output("*", std::cout);
-    console.InitializeLoggerHook(m_logSystem.get());
+
+    LOG_INFO("Application", "Initializing game world.");
+    Init();
     //uim_logSystem->add_output("*", std::cout);
     LOG_INFO("Application", "Creating window.");
     window = std::make_unique<SDL3Window>();
@@ -293,7 +301,7 @@ void VoxCraftGame::Run()
                   GET_CVAR(std::string, "w_title"));
         return;
                         }
-    m_world = std::make_shared<UWorld>();
+
     LOG_INFO("Application", "Creating Vulkan renderer.");
     renderer = std::make_unique<VulkanRenderer>();
     if (!renderer->Init(window.get(), m_world.get())) {
@@ -304,8 +312,7 @@ void VoxCraftGame::Run()
     auto* imguiContext = Engine::GetCurrentContext().GetImGui()->GetContext();
     ImGui::SetCurrentContext(imguiContext);
 
-    LOG_INFO("Application", "Initializing game world.");
-    Init();
+
 
     LOG_INFO("Application", "Initialization successful.");
     LOG_INFO("Application", "Starting main loop.");
